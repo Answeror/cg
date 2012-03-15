@@ -5,7 +5,7 @@ project(cg)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/misc/cmake)
 include(config)
 
-add_subdirectory(src)
-
 enable_testing()
+
+add_subdirectory(src)
 add_subdirectory(test)
