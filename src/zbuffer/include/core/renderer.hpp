@@ -29,7 +29,11 @@ namespace cg
     class renderer : boost::noncopyable
     {
     public:
-#pragma region operations
+        renderer();
+
+        ~renderer();
+        
+    public:
         /**
          *  Provide primitive operations in begin-end block.
          */
@@ -47,6 +51,10 @@ namespace cg
             void color(const cg::color &c);
             void color(const cml::vector3i &rgb);
             void color(const cml::vector4i &rgba);
+
+            void vertex3d(double x, double y, double z) { vertex(cmlex::vector3(x, y, z)); }
+            void normal3d(double x, double y, double z) { normal(cmlex::vector3(x, y, z)); }
+            void color3f(double r, double g, double b) { color(cg::color(r, g, b, 1)); }
 
         private:
             friend class renderer;
@@ -69,19 +77,12 @@ namespace cg
          *  Usually be called after `render`.
          */
         void clear_vertex_buffer();
-#pragma endregion operations
 
-#pragma region transforms
-        /// @todo to be added
-#pragma endregion transforms
-
-#pragma region render
         /**
          *  Render to some target, such as QImage.
          */
         template<class RenderTarget>
         void render(RenderTarget &target, const camera &cam) const;
-#pragma endregion render
 
     protected:
         struct data_type;

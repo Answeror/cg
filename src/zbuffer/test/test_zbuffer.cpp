@@ -13,21 +13,28 @@
 #include "rasterize.hpp"
 #include "rasterize_impl.hpp"
 #include "color.hpp"
+#include "qrender_target.hpp"
+
+namespace test
+{
 
 const int WIDTH = 16;
 const int HEIGHT = 16;
 
-typedef cg::color frame_buffer[HEIGHT][WIDTH];
-typedef double depth_buffer[HEIGHT][WIDTH];
+//typedef cg::color frame_buffer[HEIGHT][WIDTH];
+struct depth_buffer
+{
+    double data[HEIGHT][WIDTH];
+};
 
-int width(const frame_buffer &fb) { return WIDTH; }
-int height(const frame_buffer &fb) { return HEIGHT; }
-void set(frame_buffer &fb, int x, int y, cg::color c) { fb[y][x] = c; }
+//int width(const frame_buffer &fb) { return WIDTH; }
+//int height(const frame_buffer &fb) { return HEIGHT; }
+//void set(frame_buffer &fb, int x, int y, cg::color c) { fb[y][x] = c; }
 
 int width(const depth_buffer &fb) { return WIDTH; }
 int height(const depth_buffer &fb) { return HEIGHT; }
-void set(depth_buffer &fb, int x, int y, double d) { fb[y][x] = d; }
-double get(const depth_buffer &fb, int x, int y) { return fb[y][x]; }
+void set(depth_buffer &fb, int x, int y, double d) { fb.data[y][x] = d; }
+double get(const depth_buffer &fb, int x, int y) { return fb.data[y][x]; }
 
 struct vertex
 {
@@ -43,12 +50,16 @@ typedef boost::array<vertex, 3> triangle;
 const vertex& a(const triangle &t) { return t[0]; }
 const vertex& b(const triangle &t) { return t[1]; }
 const vertex& c(const triangle &t) { return t[2]; }
+}
+
+using namespace test;
+
 template<>
 struct cg::traits::vertex<triangle>
 {
     typedef ::vertex type;
 };
-
+/*
 BOOST_AUTO_TEST_CASE(t_zbuffer)
 {
     frame_buffer fb;
@@ -72,12 +83,50 @@ BOOST_AUTO_TEST_CASE(t_zbuffer)
     };
     cg::rasterize(fb, db, ts);
 
-    using boost::for_each;
-    using boost::irange;
-    for each (int y in irange<int>(HEIGHT - 1, -1, -1)) {
-        for each (int x in irange<int>(0, WIDTH)) {
-            std::cout << int(fb[y][x][0]);
+    //using boost::for_each;
+    //using boost::irange;
+    //for each (int y in irange<int>(HEIGHT - 1, -1, -1)) {
+    //    for each (int x in irange<int>(0, WIDTH)) {
+    //        std::cout << int(fb[y][x][0]);
+    //    }
+    //    std::cout << std::endl;
+    //}
+}
+//*/
+
+BOOST_AUTO_TEST_CASE(t_on_qrender_target)
+{
+    QImage q(WIDTH, HEIGHT, QImage::Format_RGB32);
+    cg::qrender_target fb(q);
+    for (int i = 0; i < HEIGHT; ++i)
+    {
+        for (int j = 0; j < WIDTH; ++j)
+        {
+            set(fb, i, j, cg::color(0, 0, 0, 1));
         }
-        std::cout << std::endl;
     }
+    depth_buffer db;
+    for (int i = 0; i < HEIGHT; ++i)
+    {
+        for (int j = 0; j < WIDTH; ++j)
+        {
+            db.data[i][j] = 1;
+        }
+    }
+    typedef cmlex::vector3 p;
+    cg::color c(1, 1, 1, 1);
+    p n(0, 0, 0);
+    vertex vs[] = {
+        {p(0, 0, 0), n, c},
+        {p(10, 0, 0), n, c},
+        {p(0, 10, 0), n, c},
+        {p(0, 0, 0.5), n, c},
+        {p(10, 0, 0.5), n, c},
+        {p(10, 10, 0.5), n, c}
+    };
+    triangle ts[] = {
+        {vs[0], vs[1], vs[2]},
+        {vs[3], vs[4], vs[5]}
+    };
+    cg::rasterize(fb, db, ts);
 }

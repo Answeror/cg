@@ -34,10 +34,11 @@ namespace cg
         void load_identity();
         void mult(const matrix_type &m);
         void set(const matrix_type &m);
-        const matrix_type& final() const;
+        matrix_type final() const;
 
     private:
         stack_type data;
+        stack_type cache;
     };
 }
 

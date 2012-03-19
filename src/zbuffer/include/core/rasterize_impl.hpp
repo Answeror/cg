@@ -16,6 +16,8 @@
 
 #include <list>
 #include <vector>
+#include <cmath>
+#include <QDebug>
 
 #include <boost/assert.hpp>
 #include <boost/concept_check.hpp>
@@ -124,6 +126,7 @@ namespace cg
             {
                 /// 多边形所在平面方程系数
                 double a, b, c, d; 
+                int id;
                 /// 多边形对应的活化边(三角形只有一条活化边)
                 active_edge *ae;
             };
@@ -139,12 +142,24 @@ namespace cg
                 double dx;
                 /// 边跨越的扫描线数目
                 int dy;
+                /// 边与扫描线交点处的颜色
+                color c;
+                /// 相邻两条扫描线交点的颜色差
+                color dc;
                 /// 顶点, a较高
                 vertex a, b;
                 /// 边所属的多边形
                 polygon *p;
 
-                void update() { if (--dy) x += dx; }
+                /// update position and color
+                void update()
+                {
+                    if (--dy)
+                    {
+                        x += dx;
+                        c += dc;
+                    }
+                }
 
                 bool valid() { return dy > 0; }
             };
@@ -183,7 +198,7 @@ namespace cg
                 /// insert an edge to fill in the empty position
                 void insert(edge *e)
                 {
-                    BOOST_ASSERT(!(this->e.first && this->e.second));
+                    BOOST_ASSERT(half());
                     if (this->e.first) { // right empty
                         this->e.second = e;
                     } else { // left empty
@@ -198,13 +213,19 @@ namespace cg
                     BOOST_ASSERT(e.second && e.second->valid());
                     e.first->update();
                     e.second->update();
-                    zl += dzx * e.first->dx - dzy;
+                    // 老彭的书上写错了
+                    // zl += dzx * e.first->dx - dzy;
+                    zl += dzx * e.first->dx + dzy;
                     if (!e.first->valid()) e.first = nullptr;
                     if (!e.second->valid()) e.second = nullptr;
                     if (!valid()) p->ae = nullptr;
                 }
 
-                bool valid() { return e.first && e.second; }
+                bool valid() { return e.first || e.second; }
+
+                bool half() { return bool(e.first) ^ bool(e.second); }
+
+                bool complete() { return e.first && e.second; }
             };
             /// use list to 1) ensure point valid; 2) fast delete
             typedef std::list<active_edge> active_edge_table;
@@ -223,9 +244,6 @@ namespace cg
                 auto a = p(u);
                 auto b = p(v);
 
-                // @todo more code
-                if (y(a) == y(b)) return; // horizonal
-
                 if (y(a) < y(b))
                 {
                     boost::swap(u, v);
@@ -237,8 +255,15 @@ namespace cg
                 double xx = x(a);
                 double zz = z(a);
                 int dy = ymax - ymin;
-                double dx = (x(a) - x(b)) / (y(b) - y(a));
-                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, u, v, po))));
+
+                // @todo more code
+                if (0 == dy) return; // horizonal
+
+                double yspan = y(b) - y(a);
+                double dx = (x(a) - x(b)) / yspan;
+                color cc = c(u);
+                color dc = (c(u) - c(v)) / yspan;
+                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
             }
 
             /// make polygon and edge table
@@ -253,12 +278,18 @@ namespace cg
                     //auto ymax = iround(std::max(y(_a), std::max(y(_b), y(_c))));
                     //auto ymin = iround(std::min(y(_a), std::min(y(_b), y(_c))));
                     polygon *po = nullptr;
-                    pt.push_back(po = new polygon(ans::make_struct(bofu::as_vector(bofu::push_back(
-                        planf(p(_a), p(_b), p(_c)), nullptr
-                        )))));
-                    add_edge(po, _a, _b);
-                    add_edge(po, _b, _c);
-                    add_edge(po, _c, _a);
+                    pt.push_back(po = new polygon(ans::make_struct(bofu::as_vector(
+                        bofu::push_back(bofu::push_back(planf(p(_a), p(_b), p(_c)), id), nullptr)
+                        ))));
+                    qDebug() << po->a << po->b << po->c << po->d;
+                    BOOST_ASSERT(std::abs(cml::dot(cmlex::vector3(po->a, po->b, po->c), p(_a)) + po->d) < 1e-8);
+                    // remove back face
+                    if (po->c > 0)
+                    {
+                        add_edge(po, _a, _b);
+                        add_edge(po, _b, _c);
+                        add_edge(po, _c, _a);
+                    }
                 });
                 for_each(irange<int>(0, height(framebuffer)), [&](int y){
                     boost::sort(et[y], [](const edge &lhs, const edge &rhs){
@@ -285,6 +316,7 @@ namespace cg
                         auto p = e.p;
                         BOOST_ASSERT(p);
                         if (p->ae) { // already active
+                            BOOST_ASSERT(p->ae->half());
                             p->ae->insert(&e);
                         } else { // just become active
                             aet.push_back(&e);
@@ -293,7 +325,13 @@ namespace cg
                     });
                     // draw
                     for_each(aet, [&](active_edge &ae){
+                        BOOST_ASSERT(ae.complete());
                         auto zx = ae.zl;
+                        const double xspan = ae.e.second->x - ae.e.first->x;
+                        BOOST_ASSERT(xspan >= 0);
+                        const color cspan = ae.e.second->c - ae.e.first->c;
+                        const color dcx = xspan > 0 ? cspan / xspan : color(0, 0, 0, 0);
+                        color cx = ae.e.first->c;
                         for_each(
                             irange<int>(
                                 iround(ae.e.first->x),
@@ -304,11 +342,12 @@ namespace cg
                                 // z range from 0 to 1, 0 means near
                                 if (zx < z)
                                 {
-                                    // @todo shading
                                     set(depthbuffer, x, ynow, zx);
-                                    set(framebuffer, x, ynow, color(1, 1, 1, 1));
+                                    // @todo shading
+                                    set(framebuffer, x, ynow, cx);
                                 }
                                 zx += ae.dzx;
+                                cx += dcx;
                             }
                         );
                     });
@@ -330,6 +369,7 @@ namespace cg
         };
     }
 
+
     template<class FrameBuffer, class DepthBuffer, class TriangleRange>
     void rasterize(
         FrameBuffer &framebuffer,
@@ -343,7 +383,7 @@ namespace cg
         BOOST_ASSERT(width(framebuffer) == width(depthbuffer));
         BOOST_ASSERT(height(framebuffer) == height(depthbuffer));
 
-        BOOST_CONCEPT_ASSERT((boost::RandomAccessRangeConcept<TriangleRange>));
+        //BOOST_CONCEPT_ASSERT((boost::RandomAccessRangeConcept<TriangleRange>));
         typedef typename boost::range_value<TriangleRange>::type Triangle;
         BOOST_CONCEPT_ASSERT((concepts::Triangle<Triangle>));
 

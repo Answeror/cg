@@ -29,12 +29,12 @@ namespace cg
         const cmlex::vector3 &c
         )
     {
-        cmlex::vector3 m = cml::cross(b - a, c - a);
+        cmlex::vector3 m = normalize(cross(b - a, c - a));
         return bofu::make_vector(
             x(m),
             y(m),
             z(m),
-            -x(m) * x(a) - y(m) * y(a) - z(m) * z(a)
+            -dot(m, a)
             );
     }
 }

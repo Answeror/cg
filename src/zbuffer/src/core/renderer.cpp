@@ -54,16 +54,16 @@ cg::renderer::data_type::data_type() :
 void cg::renderer_method::model_transform(vertex_container &vs)
 {
     boost::for_each(vs, [&](vertex &v){
-        v.point = cml::transform_point(data->model_stack.final(), v.point);
+        v.point = cml::transform_point_4D(data->model_stack.final(), v.point);
         v.normal = cml::transform_vector(data->model_stack.final(), v.normal);
     });
 }
 
 /// may be paralled
-void cg::renderer_method::view_transform(vertex_container &vs, const camera &cam)
+void cg::renderer_method::view_transform(vertex_container &vs, const camera &cam) const
 {
     boost::for_each(vs, [&](vertex &v){
-        v.point = cml::transform_point(cam.view(), v.point);
+        v.point = cml::transform_point_4D(cam.view(), v.point);
     });
 }
 
@@ -74,34 +74,34 @@ bofu::vector<cg::vertex_container, cg::itriangle_container>
     const vertex_container &vs,
     const itriangle_container &ps,
     const camera &cam
-    )
+    ) const
 {
     vertex_container tvs;
     boost::for_each(vs, [&](vertex v){
-        v.point = cml::transform_point(cam.projection(), v.point);
+        v.point = cml::transform_point_4D(cam.projection(), v.point);
         tvs.push_back(v);
     });
     return bofu::vector_tie(tvs, ps);
 }
 
-/// may be paralled
-template<class WritablePointRange>
-void cg::renderer_method::viewport_transform(
-    const WritablePointRange &ps, int width, int height)
-{
-    cmlex::matrix44 m;
-    cml::matrix_viewport(
-        m,
-        0.0,
-        boost::numeric_cast<double>(width),
-        0.0,
-        boost::numeric_cast<double>(height),
-        cml::z_clip_zero
-        );
-    boost::for_each(vs, [&](point &p){
-        p = cml::transform_point(m, p);
-    });
-}
+///// may be paralled
+//template<class WritablePointRange>
+//void cg::renderer_method::viewport_transform(
+//    const WritablePointRange &ps, int width, int height) const
+//{
+//    cmlex::matrix44 m;
+//    cml::matrix_viewport(
+//        m,
+//        0.0,
+//        boost::numeric_cast<double>(width),
+//        0.0,
+//        boost::numeric_cast<double>(height),
+//        cml::z_clip_zero
+//        );
+//    boost::for_each(vs, [&](point &p){
+//        p = cml::transform_point(m, p);
+//    });
+//}
 
 namespace
 {
@@ -125,6 +125,17 @@ void cg::renderer::be(const render_operation &op, boost::function<void(primitive
 void cg::renderer::clear_vertex_buffer()
 {
     data->vertices.clear();
+    data->triangles.clear();
+}
+
+cg::renderer::renderer() : data(ans::alpha::pimpl::use_default_ctor())
+{
+
+}
+
+cg::renderer::~renderer()
+{
+
 }
 
 cg::renderer::primitive::primitive(renderer &ren) : data(ren)

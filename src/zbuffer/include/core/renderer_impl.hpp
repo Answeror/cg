@@ -17,9 +17,14 @@
 #include <algorithm>
 
 #include <boost/fusion/include/vector10.hpp>
+#include <boost/fusion/include/vector_tie.hpp>
+#include <boost/fusion/include/make_vector.hpp>
 #include <boost/range/adaptor/transformed.hpp>
+#include <boost/numeric/conversion/cast.hpp>
 
 #include <ans/alpha/method.hpp>
+#include <ans/alpha/pimpl.hpp>
+#include <ans/alpha/pimpl_impl.hpp>
 #include <ans/make_struct.hpp>
 
 #include "renderer.hpp"
@@ -74,7 +79,7 @@ namespace cg
         void model_transform(vertex_container &vs);
 
         /// may be paralled
-        void view_transform(vertex_container &vs, const camera &cam);
+        void view_transform(vertex_container &vs, const camera &cam) const;
 
         /// may be paralled
         /// @todo clipping
@@ -83,11 +88,25 @@ namespace cg
             const vertex_container &vs,
             const itriangle_container &ps,
             const camera &cam
-            );
+            ) const;
 
         /// may be paralled
         template<class WritablePointRange>
-        void viewport_transform(const WritablePointRange &ps, int width, int height);
+        void viewport_transform(const WritablePointRange &ps, int width, int height) const
+        {
+            cmlex::matrix44 m;
+            cml::matrix_viewport(
+                m,
+                0.0,
+                boost::numeric_cast<double>(width),
+                0.0,
+                boost::numeric_cast<double>(height),
+                cml::z_clip_zero
+                );
+            boost::for_each(ps, [&](point &p){
+                p = cml::transform_point(m, p);
+            });
+        }
     };
 
     struct triangle
@@ -99,6 +118,12 @@ namespace cg
         friend const vertex& a(const triangle &t) { return (*t.vs)[t.i->a]; }
         friend const vertex& b(const triangle &t) { return (*t.vs)[t.i->b]; }
         friend const vertex& c(const triangle &t) { return (*t.vs)[t.i->c]; }
+    };
+
+    template<>
+    struct traits::vertex<triangle>
+    {
+        typedef cg::vertex type;
     };
 
     struct depth_buffer
@@ -113,6 +138,7 @@ namespace cg
         friend int width(const depth_buffer &b) { return b.data.size().second; }
         friend int height(const depth_buffer &b) { return b.data.size().first; }
         friend void set(depth_buffer &b, int x, int y, double d) { b.data(y, x) = d; }
+        friend double get(const depth_buffer &b, int x, int y) { return b.data(y, x); }
     };
 }
 
@@ -126,17 +152,40 @@ void cg::renderer::render(RenderTarget &target, const camera &cam) const
     method(this)->view_transform(vertices, cam);
     itriangle_container itriangles;
     bofu::vector_tie(vertices, itriangles) =
-        method(this)->project(vertices, data->triangles);
+        method(this)->project(vertices, data->triangles, cam);
     method(this)->viewport_transform(
-        vertices | boad::transformed([](vertex &v){ return v.point; }),
+        vertices | boad::transformed([](vertex &v)->point&{ return v.point; }),
         width(target),
         height(target)
         );
     
-    depth_buffer zbuffer(height(target), width(target));
+    depth_buffer zbuffer(width(target), height(target));
     rasterize(target, zbuffer, itriangles | boad::transformed([&](const itriangle &i){
-        return triangle(ans::make_struct(&i, &vertices));
+        return triangle(ans::make_struct(bofu::make_vector(&i, &vertices)));
     }));
+
+#ifdef CG_SHOW_DEPTH
+    double mx = 0;
+    double mn = 1;
+    for (int y = 0; y != height(target); ++y)
+    {
+        for (int x = 0; x != width(target); ++x)
+        {
+            auto d = get(zbuffer, x, y);
+            if (d < mn) mn = d;
+            else if (d > mx) mx = d;
+        }
+    }
+    for (int y = 0; y != height(target); ++y)
+    {
+        for (int x = 0; x != width(target); ++x)
+        {
+            auto d = get(zbuffer, x, y);
+            d = (d - mn) / (mx - mn);
+            set(target, x, y, cg::color(d, d, d, 1));
+        }
+    }
+#endif
 }
 
 #endif // __RENDERER_IMPL_HPP_20120315145503__

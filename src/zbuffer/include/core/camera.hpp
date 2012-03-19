@@ -32,7 +32,6 @@ namespace cg
         void perspective(double fovy, double aspect, double znear, double zfar);
         void frustum(double left, double right, double bottom, double top, double near, double far);
         void ortho(double left, double right, double bottom, double top, double near, double far);
-        cmlex::vector3 position();
 
         const cmlex::matrix44& view() const;
         const cmlex::matrix44& projection() const;

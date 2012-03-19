@@ -1,2 +1,2 @@
 add_subdirectory(ggl)
-add_subdirectory(z-buffer)
+add_subdirectory(zbuffer)

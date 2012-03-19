@@ -20,6 +20,11 @@ namespace cg
 {
     typedef cmlex::vector4 color;
 
+    inline double r(const color &c) { return x(c); }
+    inline double g(const color &c) { return y(c); }
+    inline double b(const color &c) { return z(c); }
+    inline double a(const color &c) { return w(c); }
+
     /// @todo add some common color
 }
 
