@@ -14,6 +14,8 @@
  *  Implementation of renderer::render method.
  */
 
+#include <QDebug>
+
 #include <algorithm>
 
 #include <boost/fusion/include/vector10.hpp>
@@ -21,6 +23,7 @@
 #include <boost/fusion/include/make_vector.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 #include <boost/numeric/conversion/cast.hpp>
+#include <boost/timer.hpp>
 
 #include <ans/alpha/method.hpp>
 #include <ans/alpha/pimpl.hpp>
@@ -52,6 +55,14 @@ namespace cg
         friend const point_type& p(const vertex &v) { return v.point; }
         friend const normal_type& n(const vertex &v) { return v.normal; }
         friend const color_type& c(const vertex &v) { return v.color; }
+
+        friend const point_type& get_point(const vertex &v) { return v.point; }
+        friend const normal_type& get_normal(const vertex &v) { return v.normal; }
+        friend const color_type& get_color(const vertex &v) { return v.color; }
+
+        friend void set_point(vertex &v, const point_type &p) { v.point = p; }
+        friend void set_normal(vertex &v, const normal_type &n) { v.normal = n; }
+        friend void set_color(vertex &v, const color_type &c) { v.color = c; }
     };
     typedef std::vector<vertex> vertex_container;
     /// indexed triangle
@@ -147,6 +158,7 @@ void cg::renderer::render(RenderTarget &target, const camera &cam) const
 {
     ans::alpha::functional::method<renderer_method> method;
 
+    boost::timer tm;
     // transform to screen space
     vertex_container vertices = data->vertices;
     method(this)->view_transform(vertices, cam);
@@ -158,12 +170,14 @@ void cg::renderer::render(RenderTarget &target, const camera &cam) const
         width(target),
         height(target)
         );
+    qDebug() << "transform:" << tm.elapsed();
     
     depth_buffer zbuffer(width(target), height(target));
     rasterize(target, zbuffer, itriangles | boad::transformed([&](const itriangle &i){
         return triangle(ans::make_struct(bofu::make_vector(&i, &vertices)));
     }));
 
+//#define CG_SHOW_DEPTH
 #ifdef CG_SHOW_DEPTH
     double mx = 0;
     double mn = 1;

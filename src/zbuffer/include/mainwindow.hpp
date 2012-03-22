@@ -25,6 +25,9 @@ namespace cg
         Q_OBJECT
 
     public:
+        typedef QMainWindow base_type;
+
+    public:
         mainwindow();
 
         ~mainwindow();

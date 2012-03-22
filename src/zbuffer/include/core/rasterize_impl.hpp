@@ -19,8 +19,11 @@
 #include <cmath>
 #include <QDebug>
 
+#include <boost/timer.hpp>
+#include <boost/range/algorithm/min_element.hpp>
+#include <boost/range/algorithm/max_element.hpp>
 #include <boost/assert.hpp>
-#include <boost/concept_check.hpp>
+#include <boost/concept/requires.hpp>
 #include <boost/range.hpp>
 #include <boost/range/concepts.hpp>
 #include <boost/range/irange.hpp>
@@ -100,6 +103,10 @@ namespace cg
 #include <boost/concept/detail/concept_undef.hpp>
 #pragma endregion concepts
 
+using cml::x;
+using cml::y;
+using cml::z;
+
 namespace cg
 {
     namespace traits
@@ -157,7 +164,9 @@ namespace cg
                     if (--dy)
                     {
                         x += dx;
+#ifdef CG_SHOW_COLOR
                         c += dc;
+#endif
                     }
                 }
 
@@ -203,14 +212,29 @@ namespace cg
                         this->e.second = e;
                     } else { // left empty
                         this->e.first = e;
+                    }
+                    // to avoid sort et
+                    if (
+                        this->e.first->x > this->e.second->x || 
+                        this->e.first->x == this->e.second->x &&
+                        this->e.first->dx > this->e.second->dx
+                        )
+                    {
+                        boost::swap(this->e.first, this->e.second);
+                    }
+                    if (e == this->e.first)
+                    {
                         zl = e->z;
                     }
+
+                    BOOST_ASSERT(this->e.first->x <= this->e.second->x);
                 }
 
                 void update()
                 {
                     BOOST_ASSERT(e.first && e.first->valid());
                     BOOST_ASSERT(e.second && e.second->valid());
+                    BOOST_ASSERT(this->e.first->x <= this->e.second->x);
                     e.first->update();
                     e.second->update();
                     // 老彭的书上写错了
@@ -266,36 +290,99 @@ namespace cg
                 et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
             }
 
+            /// round y value
+            template<class Vertex>
+            void round(Vertex &v)
+            {
+                auto p = get_point(v);
+                y(p) = boost::math::iround(y(p));
+                set_point(v, p);
+            }
+
+
+            /// for showing depth in framebuffer
+            double zmin, zmax;
+
+            template<class Vertex>
+            void normalize_point_depth(Vertex &v)
+            {
+                auto p = get_point(v);
+                z(p) = (z(p) - zmin) / (zmax - zmin);
+                set_point(v, p);
+            }
+
+            void normalize_depth()
+            {
+                zmin = 1;
+                zmax = 0;
+                for_each(triangles, [&](const triangle &t){
+                    auto &u = a(t);
+                    auto &v = b(t);
+                    auto &w = c(t);
+                    double zs[] = {z(p(u)), z(p(v)), z(p(w))};
+                    for_each(zs, [&](double z){
+                        if (z < zmin)
+                        {
+                            zmin = z;
+                        }
+                        else if (z > zmax)
+                        {
+                            zmax = z;
+                        }
+                    });
+                });
+            }
+
             /// make polygon and edge table
+            /// 用了大概1/4~1/3的时间(90ms), 可并行化
             void make_table()
             {
+#ifndef CG_SHOW_COLOR
+                normalize_depth();
+#endif
+                //boost::timer tm;
                 et = edge_table(height(framebuffer));
                 for_each(irange<int>(0, size(triangles)), [&](int id){
                     auto &t = triangles[id];
-                    auto &_a = a(t);
-                    auto &_b = b(t);
-                    auto &_c = c(t);
+                    auto u = a(t);
+                    auto v = b(t);
+                    auto w = c(t);
+
+                    // round y value to make x sorting easy
+                    round(u);
+                    round(v);
+                    round(w);
+#ifndef CG_SHOW_COLOR
+                    normalize_point_depth(u);
+                    normalize_point_depth(v);
+                    normalize_point_depth(w);
+#endif
                     //auto ymax = iround(std::max(y(_a), std::max(y(_b), y(_c))));
                     //auto ymin = iround(std::min(y(_a), std::min(y(_b), y(_c))));
                     polygon *po = nullptr;
                     pt.push_back(po = new polygon(ans::make_struct(bofu::as_vector(
-                        bofu::push_back(bofu::push_back(planf(p(_a), p(_b), p(_c)), id), nullptr)
+                        bofu::push_back(bofu::push_back(planf(p(u), p(v), p(w)), id), nullptr)
                         ))));
-                    qDebug() << po->a << po->b << po->c << po->d;
-                    BOOST_ASSERT(std::abs(cml::dot(cmlex::vector3(po->a, po->b, po->c), p(_a)) + po->d) < 1e-8);
+                    //qDebug() << po->a << po->b << po->c << po->d;
+                    BOOST_ASSERT(std::abs(cml::dot(cmlex::vector3(po->a, po->b, po->c), p(u)) + po->d) < 1e-8);
                     // remove back face
                     if (po->c > 0)
                     {
-                        add_edge(po, _a, _b);
-                        add_edge(po, _b, _c);
-                        add_edge(po, _c, _a);
+                        add_edge(po, u, v);
+                        add_edge(po, v, w);
+                        add_edge(po, w, u);
                     }
                 });
-                for_each(irange<int>(0, height(framebuffer)), [&](int y){
-                    boost::sort(et[y], [](const edge &lhs, const edge &rhs){
-                        return lhs.x < rhs.x || lhs.x == rhs.x && lhs.dx < rhs.dx;
-                    });
-                });
+                //qDebug() << "planft:" << tm.elapsed();
+
+                // 这里排序的话会占掉20%的渲染时间
+                //boost::timer tm;
+                //for_each(irange<int>(0, height(framebuffer)), [&](int y){
+                //    boost::sort(et[y], [](const edge &lhs, const edge &rhs){
+                //        return lhs.x < rhs.x || lhs.x == rhs.x && lhs.dx < rhs.dx;
+                //    });
+                //});
+                //qDebug() << "sort:" << tm.elapsed();
             }
 
             color flat_shading(int x, int y, const edge &lhs, const edge &rhs);
@@ -327,11 +414,13 @@ namespace cg
                     for_each(aet, [&](active_edge &ae){
                         BOOST_ASSERT(ae.complete());
                         auto zx = ae.zl;
+#ifdef CG_SHOW_COLOR
                         const double xspan = ae.e.second->x - ae.e.first->x;
                         BOOST_ASSERT(xspan >= 0);
                         const color cspan = ae.e.second->c - ae.e.first->c;
                         const color dcx = xspan > 0 ? cspan / xspan : color(0, 0, 0, 0);
                         color cx = ae.e.first->c;
+#endif
                         for_each(
                             irange<int>(
                                 iround(ae.e.first->x),
@@ -343,11 +432,18 @@ namespace cg
                                 if (zx < z)
                                 {
                                     set(depthbuffer, x, ynow, zx);
+#ifdef CG_SHOW_COLOR
                                     // @todo shading
                                     set(framebuffer, x, ynow, cx);
+#else
+                                    auto reversed = 1 - zx;
+                                    set(framebuffer, x, ynow, color(reversed, reversed, reversed, 1));
+#endif
                                 }
                                 zx += ae.dzx;
+#ifdef CG_SHOW_COLOR
                                 cx += dcx;
+#endif
                             }
                         );
                     });
@@ -371,22 +467,22 @@ namespace cg
 
 
     template<class FrameBuffer, class DepthBuffer, class TriangleRange>
-    void rasterize(
+    BOOST_CONCEPT_REQUIRES(
+        ((concepts::FrameBuffer<FrameBuffer>))
+        ((concepts::DepthBuffer<DepthBuffer>))
+        // Forward Traversal Iterators require Default Constructible
+        //((boost::ForwardRangeConcept<TriangleRange>))
+        ((boost::SinglePassRangeConcept<TriangleRange>))
+        ((concepts::Triangle<typename boost::range_value<TriangleRange>::type>)),
+        (void)
+        ) rasterize(
         FrameBuffer &framebuffer,
         DepthBuffer &depthbuffer,
         const TriangleRange &triangles
         )
     {
-        BOOST_CONCEPT_ASSERT((concepts::FrameBuffer<FrameBuffer>));
-        BOOST_CONCEPT_ASSERT((concepts::DepthBuffer<DepthBuffer>));
-
         BOOST_ASSERT(width(framebuffer) == width(depthbuffer));
         BOOST_ASSERT(height(framebuffer) == height(depthbuffer));
-
-        //BOOST_CONCEPT_ASSERT((boost::RandomAccessRangeConcept<TriangleRange>));
-        typedef typename boost::range_value<TriangleRange>::type Triangle;
-        BOOST_CONCEPT_ASSERT((concepts::Triangle<Triangle>));
-
         detail::rasterize<FrameBuffer, DepthBuffer, TriangleRange>(framebuffer, depthbuffer, triangles);
     }
 }

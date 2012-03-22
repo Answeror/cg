@@ -44,6 +44,9 @@ namespace bofu = boost::fusion;
 using boost::optional;
 using boost::none;
 
+typedef cg::wavefront_obj_loader::exception exception;
+typedef cg::wavefront_obj_loader::error_info error_info;
+
 namespace cg
 {
     struct wavefront_obj_loader::data_type
@@ -78,17 +81,20 @@ namespace cg
             using ascii::space;
 
             std::string op;
-            qi::phrase_parse(
+            if (!qi::phrase_parse(
                 first,
                 last,
                 lexeme[+(alnum[ph::ref(op) += _1])],
                 space
-                );
+                ))
+            {
+                BOOST_THROW_EXCEPTION(exception::parse_error());
+            }
             return op;
         }
 
         template<class Iterator>
-        bool parse_vertex(Iterator &first, Iterator last)
+        void parse_vertex(Iterator &first, Iterator last)
         {
             using qi::_1;
             using qi::double_;
@@ -105,13 +111,15 @@ namespace cg
                 -double_[ph::ref(v) /= _1]
             ),
                 space
-                )) return false;
+                ))
+            {
+                BOOST_THROW_EXCEPTION(exception::parse_error());
+            }
             data->vertices.push_back(v);
-            return true;
         }
 
         template<class Iterator>
-        bool parse_normal(Iterator &first, Iterator last)
+        void parse_normal(Iterator &first, Iterator last)
         {
             using qi::_1;
             using qi::double_;
@@ -127,13 +135,15 @@ namespace cg
                     double_[ph::ref(z(v)) = _1]
                 ),
                 space
-                )) return false;
+                ))
+            {
+                BOOST_THROW_EXCEPTION(exception::parse_error());
+            }
             data->normals.push_back(v);
-            return true;
         }
 
         template<class Iterator>
-        bool parse_face(Iterator &first, Iterator last)
+        void parse_face(Iterator &first, Iterator last)
         {
             using qi::_1;
             using qi::int_;
@@ -146,31 +156,38 @@ namespace cg
                 first,
                 last,
                 (
-                    (
-                        int_[ph::ref(v.v) = _1] >>
+                    +(
+                        int_[ph::ref(v.v) = _1 - 1] >>
                         -(
-                            lit('/') >> -int_[ph::ref(v.t) = _1] >>
-                            -(lit('/') >> int_[ph::ref(v.n) = _1])
+                            lit('/') >> -int_[ph::ref(v.t) = _1 - 1] >>
+                            -(lit('/') >> int_[ph::ref(v.n) = _1 - 1])
                         )
-                    )[ph::push_back(ph::ref(f), ph::ref(v))] % ' '
+                    )[ph::push_back(ph::ref(f), ph::ref(v))]
                 ),
                 space
-                )) return false;
+                ))
+            {
+                BOOST_THROW_EXCEPTION(exception::parse_error());
+            }
             data->faces.push_back(f);
-            return true;
         }
 
         template<class Iterator>
-        bool parse_line(Iterator first, Iterator last)
+        void parse_line(Iterator first, Iterator last)
         {
-            if (first == last || '#' == *first) return true;
+            if (first == last || '#' == *first) return;
             const std::string &op = parse_op(first, last);
-            if (op.empty()) return true;
-            if ("v" == op) return parse_vertex(first, last);
-            if ("vn" == op) return parse_normal(first, last);
-            if ("f" == op) return parse_face(first, last);
-            BOOST_THROW_EXCEPTION(std::runtime_error("Unknown operation."));
-            return false;
+            try {
+                if ("v" == op) return parse_vertex(first, last);
+                if ("vn" == op) return parse_normal(first, last);
+                if ("f" == op) return parse_face(first, last);
+                if ("g" == op) return; /// @todo to be impl
+            } catch (boost::exception &e) {
+                e << error_info::operation(op);
+                throw;
+            }
+            BOOST_THROW_EXCEPTION(exception::unknown_operation() << 
+                error_info::operation(op));
         }
 
         model_ptr on_good_file(std::istream &is)
@@ -178,31 +195,50 @@ namespace cg
             init();
             model_ptr m = boost::make_shared<model>();
             std::string line;
+            int line_number = 0;
             while (getline(is, line))
             {
+                ++line_number;
                 auto first = line.begin();
-                if (!parse_line(first, line.end()))
-                {
-                    BOOST_THROW_EXCEPTION(std::runtime_error(
-                        str(boost::format("Parse failed at \"%1%\"") % std::string(first, line.end()))
-                        ));
+                try {
+                    parse_line(first, line.end());
+                } catch (boost::exception &e) {
+                    e << error_info::line_number(line_number);
+                    throw;
                 }
             }
             boost::for_each(data->faces, [&](const data_type::face &f){
                 if (boost::size(f) != 3)
                 {
-                    BOOST_THROW_EXCEPTION(std::runtime_error("Non-triangle face."));
+                    BOOST_THROW_EXCEPTION(exception::non_triangle_face() <<
+                        error_info::vertex_count(boost::size(f)));
                 }
 
                 using ans::make_struct;
                 using bofu::make_vector;
                 auto &vs = data->vertices;
                 auto &ns = data->normals;
-                m->triangles.push_back(make_struct(make_vector(
-                    model::vertex(make_struct(make_vector(vs.at(f[0].v), f[0].n ? optional<vector3>(ns[*f[0].n]) : none))),
-                    model::vertex(make_struct(make_vector(vs.at(f[1].v), f[1].n ? optional<vector3>(ns[*f[1].n]) : none))),
-                    model::vertex(make_struct(make_vector(vs.at(f[2].v), f[2].n ? optional<vector3>(ns[*f[2].n]) : none)))
-                    )));
+                try {
+                    m->triangles.push_back(make_struct(make_vector(
+                        model::vertex(make_struct(make_vector(vs.at(f[0].v), f[0].n ? optional<vector3>(ns.at(*f[0].n)) : none))),
+                        model::vertex(make_struct(make_vector(vs.at(f[1].v), f[1].n ? optional<vector3>(ns.at(*f[1].n)) : none))),
+                        model::vertex(make_struct(make_vector(vs.at(f[2].v), f[2].n ? optional<vector3>(ns.at(*f[2].n)) : none)))
+                        )));
+                } catch (std::out_of_range &) {
+                    boost::for_each(f, [&](const cg::wavefront_obj_loader::data_type::vertex_info &v){
+                        if (v.v >= boost::size(vs)) {
+                            BOOST_THROW_EXCEPTION(exception::wrong_vertex_index() <<
+                                error_info::vertex_index(v.v) <<
+                                error_info::vertex_count(boost::size(vs))
+                                );
+                        } else if (v.n >= boost::size(ns)) {
+                            BOOST_THROW_EXCEPTION(exception::wrong_normal_index() <<
+                                error_info::normal_index(*v.n) <<
+                                error_info::normal_count(boost::size(ns))
+                                );
+                        }
+                    });
+                }
             });
             return m;
         }
@@ -222,7 +258,7 @@ cg::wavefront_obj_loader::~wavefront_obj_loader()
 cg::wavefront_obj_loader::model_ptr cg::wavefront_obj_loader::load(const std::string &path)
 {
     std::ifstream ifs(path);
-    if (!ifs) return model_ptr();
+    if (!ifs) BOOST_THROW_EXCEPTION(exception::file_error() << error_info::file_path(path));
     ans::alpha::functional::method<wavefront_obj_loader_method> method;
     return method(this)->on_good_file(ifs);
 }

@@ -24,6 +24,11 @@ namespace cg
     typedef cmlex::vector4 vector4;
     typedef cmlex::matrix44 matrix44;
 
+    using cmlex::quaternion;
+
+    using cmlex::radian;
+    using cmlex::degree;
+
     typedef vector3 point;
 }
 
