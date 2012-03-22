@@ -14,6 +14,8 @@
  *  Implementation of renderer::render method.
  */
 
+#define CG_CUDA_BASED
+
 #include <QDebug>
 
 #include <algorithm>
@@ -35,6 +37,10 @@
 #include "matrix_stack.hpp"
 #include "rasterize.hpp"
 #include "rasterize_impl.hpp"
+
+#ifdef CG_CUDA_BASED
+    #include "gpu.hpp"
+#endif
 
 namespace bofu = boost::fusion;
 namespace boad = boost::adaptors;
@@ -114,9 +120,17 @@ namespace cg
                 boost::numeric_cast<double>(height),
                 cml::z_clip_zero
                 );
+#ifdef CG_CUDA_BASED
+            gpu::host_vector3_pointer_container hvps;
+            boost::for_each(ps, [&](point &p){
+                hvps.push_back((gpu::host_vector3*)p.data());
+            });
+            gpu::transform_point(*(gpu::host_matrix44*)m.data(), hvps);
+#else
             boost::for_each(ps, [&](point &p){
                 p = cml::transform_point(m, p);
             });
+#endif
         }
     };
 
