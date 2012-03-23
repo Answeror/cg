@@ -17,6 +17,7 @@
 #include <boost/assert.hpp>
 #include <boost/range/algorithm/for_each.hpp>
 #include <boost/range.hpp>
+#include <boost/format.hpp>
 
 #include <QDebug>
 #include <QString>
@@ -27,6 +28,8 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSharedPointer>
+#include <QTimer>
+#include <QStatusBar>
 
 #include <ans/alpha/pimpl.hpp>
 #include <ans/alpha/pimpl_impl.hpp>
@@ -38,6 +41,7 @@
 #include "core/renderer.hpp"
 #include "core/model.hpp"
 #include "view.hpp"
+#include "core/log.hpp"
 
 void cube(cg::renderer::primitive &p)
 {
@@ -123,6 +127,7 @@ struct cg::mainwindow::data_type
     struct actions_t
     {
         QAction *open;
+        QAction *rotate;
     } actions;
 
     cg::view *view;
@@ -144,12 +149,16 @@ namespace
         {
             data->actions.open = new QAction(tr("&Open"), this);
             connect(data->actions.open, SIGNAL(triggered()), this, SLOT(open()));
+            data->actions.rotate = new QAction(tr("&Rotate"), this);
+            connect(data->actions.rotate, SIGNAL(triggered()), this, SLOT(rotate()));
         }
 
         void init_menu()
         {
-            auto filemenu = menuBar()->addMenu(tr("&File"));
-            filemenu->addAction(data->actions.open);
+            auto file_menu = menuBar()->addMenu(tr("&File"));
+            file_menu->addAction(data->actions.open);
+            auto view_menu = menuBar()->addMenu(tr("&View"));
+            view_menu->addAction(data->actions.rotate);
         }
 
         void init_ui()
@@ -160,7 +169,15 @@ namespace
             data->view = new cg::view(this, data->renderer);
             setCentralWidget(data->view);
             //this->layout()->setSizeConstraint(QLayout::SetFixedSize);
+            init_status_bar();
             render_cube();
+        }
+
+        void init_status_bar()
+        {
+            auto tm = new QTimer(this);
+            connect(tm, SIGNAL(timeout()), this, SLOT(update_status_bar()));
+            tm->start(0);
         }
 
         void init()
@@ -212,7 +229,7 @@ using cml::z;
 
 namespace
 {
-    /// normalize vertex to [-1,1]
+    /// normalize vertex to [-1.414,1.414]
     void normalize(cg::model &m)
     {
         using boost::for_each;
@@ -227,6 +244,7 @@ namespace
             len = std::max(len, length(t.b.position -= c));
             len = std::max(len, length(t.c.position -= c));
         });
+        len /= 1.414;
         for_each(m.triangles, [&](cg::model::triangle &t){
             t.a.position /= len;
             t.b.position /= len;
@@ -270,4 +288,32 @@ QSize cg::mainwindow::sizeHint() const
         return view->size();
     }
     return base_type::sizeHint();
+}
+
+void cg::mainwindow::update_status_bar()
+{
+    if (bofu::at_key<tags::render_count>(log))
+    {
+    	statusBar()->showMessage(QString::fromStdString(str(
+            boost::format("average render time: %.3lf, average transform time: %.3lf, planf time: %.3f, make table time: %.3f")
+    		% (bofu::at_key<tags::render_time>(log) / bofu::at_key<tags::render_count>(log))
+            % (bofu::at_key<tags::transform_time>(log) / bofu::at_key<tags::render_count>(log))
+            % (bofu::at_key<tags::planf_time>(log) / bofu::at_key<tags::render_count>(log))
+            % (bofu::at_key<tags::make_table_time>(log) / bofu::at_key<tags::render_count>(log))
+            )));
+    }
+}
+
+void cg::mainwindow::rotate_one_step_about_y()
+{
+    data->view->update_camera([](camera &cam){
+        yaw_around_world_y(cam, radian(0.1));
+    });
+}
+
+void cg::mainwindow::rotate()
+{
+    auto tm = new QTimer(this);
+    connect(tm, SIGNAL(timeout()), this, SLOT(rotate_one_step_about_y()));
+    tm->start(100);
 }

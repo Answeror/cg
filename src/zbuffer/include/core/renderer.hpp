@@ -16,6 +16,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/function/function1.hpp>
+#include <boost/concept/requires.hpp>
 
 #include <cmlex/cmlex.hpp>
 #include <ans/alpha/pimpl.hpp>
@@ -23,6 +24,7 @@
 #include "color.hpp"
 #include "camera.hpp"
 #include "render_operation.hpp"
+#include "concepts/viewport.hpp"
 
 namespace cg
 {
@@ -83,6 +85,20 @@ namespace cg
          */
         template<class RenderTarget>
         void render(RenderTarget &target, const camera &cam) const;
+
+        /**
+         *  Render to viewport.
+         *  
+         *  Viewport contains render target(frame buffer) and camera.
+         */
+        template<class Viewport>
+        BOOST_CONCEPT_REQUIRES(
+            ((concepts::Viewport<Viewport>))
+            ((concepts::Camera<typename traits::camera<Viewport>::type>))
+            ((concepts::FrameBuffer<typename traits::frame_buffer<Viewport>::type>)),
+            (void)
+            )
+        render(Viewport &viewport) const;
 
     protected:
         struct data_type;

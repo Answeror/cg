@@ -36,6 +36,15 @@ namespace cg
             matrix_scale(sm, s);
             matrix_translation(tm, t);
         }
+
+        static void decompose_matrix(matrix44 &sm, matrix44 &rm, matrix44 &tm, const matrix44 &m)
+        {
+            vector3 s, t;
+            identity_transform(rm);
+            matrix_decompose_SRT(m, x(s), y(s), z(s), rm, t);
+            matrix_scale(sm, s);
+            matrix_translation(tm, t);
+        }
     };
 
     namespace { ans::alpha::functional::method<camera_method> method; }
@@ -102,7 +111,7 @@ void cg::camera::rotate_about_target(const matrix44 &rotation)
     matrix_scale(sm, s);
     auto &rm = r;
     matrix_translation(tm, t);
-    data->view = inverse(inverse(sm) * inverse(rotation * inverse(rm)) * inverse(tm));
+    data->view = inverse(inverse(sm) * inverse(rm) * rotation * inverse(tm));
 }
 
 void cg::camera::rotate_about_target(const vector3 &axis, double radian)
@@ -116,7 +125,7 @@ void cg::camera::yaw_around_target(radian yaw)
 {
     matrix44 m;
     identity_transform(m);
-    matrix_rotate_about_local_y(m, yaw.value());
+    matrix_rotate_about_world_y(m, yaw.value());
     rotate_about_target(m);
 }
 
@@ -124,7 +133,7 @@ void cg::camera::pitch_around_target(radian pitch)
 {
     matrix44 m;
     identity_transform(m);
-    matrix_rotate_about_local_x(m, pitch.value());
+    matrix_rotate_about_world_x(m, pitch.value());
     rotate_about_target(m);
 }
 
@@ -155,4 +164,22 @@ void cg::camera::limited_pitch_around_target(radian pitch)
     {
         //pitch_around_target(radian(-pitch.value()));
     }
+}
+
+void cg::camera::yaw_around_world_y(radian yaw)
+{
+    matrix44 m;
+    identity_transform(m);
+    matrix_rotate_about_world_y(m, yaw.value());
+    data->view = data->view * inverse(m);
+}
+
+void cg::camera::pitch_around_inertial_x(radian pitch)
+{
+    matrix44 m;
+    identity_transform(m);
+    matrix_rotate_about_world_x(m, pitch.value());
+    matrix44 s, r, t;
+    method(this)->decompose_matrix(s, r, t, data->view);
+    data->view = inverse(inverse(s) * inverse(r) * m * inverse(t));
 }

@@ -41,6 +41,7 @@
 
 #include "color.hpp"
 #include "planf.hpp"
+#include "log.hpp"
 
 #pragma region concepts
 #include <boost/concept/detail/concept_def.hpp>
@@ -149,12 +150,15 @@ namespace cg
                 double dx;
                 /// 边跨越的扫描线数目
                 int dy;
+#ifdef CG_SHOW_COLOR
                 /// 边与扫描线交点处的颜色
                 color c;
                 /// 相邻两条扫描线交点的颜色差
                 color dc;
+#endif
                 /// 顶点, a较高
-                vertex a, b;
+                vertex *a;
+                vertex *b;
                 /// 边所属的多边形
                 polygon *p;
 
@@ -263,32 +267,7 @@ namespace cg
             active_edge_table aet;
 
             /// add one edge to edge table
-            void add_edge(polygon *po, vertex u, vertex v)
-            {
-                auto a = p(u);
-                auto b = p(v);
-
-                if (y(a) < y(b))
-                {
-                    boost::swap(u, v);
-                    boost::swap(a, b);
-                }
-
-                int ymax = iround(y(a));
-                int ymin = iround(y(b));
-                double xx = x(a);
-                double zz = z(a);
-                int dy = ymax - ymin;
-
-                // @todo more code
-                if (0 == dy) return; // horizonal
-
-                double yspan = y(b) - y(a);
-                double dx = (x(a) - x(b)) / yspan;
-                color cc = c(u);
-                color dc = (c(u) - c(v)) / yspan;
-                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
-            }
+            void add_edge(polygon *po, vertex &u, vertex &v);
 
             /// round y value
             template<class Vertex>
@@ -337,6 +316,7 @@ namespace cg
             /// 用了大概1/4~1/3的时间(90ms), 可并行化
             void make_table()
             {
+                boost::timer tm;
 #ifndef CG_SHOW_COLOR
                 normalize_depth();
 #endif
@@ -344,9 +324,9 @@ namespace cg
                 et = edge_table(height(framebuffer));
                 for_each(irange<int>(0, size(triangles)), [&](int id){
                     auto &t = triangles[id];
-                    auto u = a(t);
-                    auto v = b(t);
-                    auto w = c(t);
+                    auto &u = a(t);
+                    auto &v = b(t);
+                    auto &w = c(t);
 
                     // round y value to make x sorting easy
                     round(u);
@@ -360,9 +340,11 @@ namespace cg
                     //auto ymax = iround(std::max(y(_a), std::max(y(_b), y(_c))));
                     //auto ymin = iround(std::min(y(_a), std::min(y(_b), y(_c))));
                     polygon *po = nullptr;
+                    boost::timer tm;
                     pt.push_back(po = new polygon(ans::make_struct(bofu::as_vector(
                         bofu::push_back(bofu::push_back(planf(p(u), p(v), p(w)), id), nullptr)
                         ))));
+                    bofu::at_key<tags::planf_time>(log) += tm.elapsed();
                     //qDebug() << po->a << po->b << po->c << po->d;
                     BOOST_ASSERT(std::abs(cml::dot(cmlex::vector3(po->a, po->b, po->c), p(u)) + po->d) < 1e-8);
                     // remove back face
@@ -383,6 +365,7 @@ namespace cg
                 //    });
                 //});
                 //qDebug() << "sort:" << tm.elapsed();
+                bofu::at_key<tags::make_table_time>(log) += tm.elapsed();
             }
 
             color flat_shading(int x, int y, const edge &lhs, const edge &rhs);
@@ -463,6 +446,37 @@ namespace cg
                 });
             }
         };
+
+        template<class FrameBuffer, class DepthBuffer, class TriangleRange>
+        void rasterize<FrameBuffer, DepthBuffer, TriangleRange>::add_edge(polygon *po, vertex &u, vertex &v)
+        {
+            auto &a = p(u);
+            auto &b = p(v);
+
+            if (y(a) < y(b))
+            {
+                return add_edge(po, v, u);
+            }
+
+            int ymax = iround(y(a));
+            int ymin = iround(y(b));
+            double xx = x(a);
+            double zz = z(a);
+            int dy = ymax - ymin;
+
+            // @todo more code
+            if (0 == dy) return; // horizonal
+
+            double yspan = y(b) - y(a);
+            double dx = (x(a) - x(b)) / yspan;
+#ifdef CG_SHOW_COLOR
+            color cc = c(u);
+            color dc = (c(u) - c(v)) / yspan;
+            et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, &u, &v, po))));
+#else
+            et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, &u, &v, po))));
+#endif
+        }
     }
 
 

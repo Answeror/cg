@@ -14,6 +14,8 @@
  *  
  */
 
+#include <QDebug>
+
 #include <cmath>
 
 #include "interact.hpp"
@@ -49,8 +51,8 @@ bool aint::orbit_interact<Camera>::mouse_move(const Context &context)
                 //rotate_about_target(*camera, m);
                 const double yaw = x(offset) * this->speed;
                 const double pitch = y(offset) * this->speed;
-                yaw_around_target(*camera, radian(yaw));
-                limited_pitch_around_target(*camera, radian(pitch));
+                yaw_around_world_y(*camera, radian(yaw));
+                pitch_around_inertial_x(*camera, radian(pitch));
                 changed = true;
             }
             this->prev = current_position(context);

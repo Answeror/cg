@@ -14,7 +14,7 @@
  *  Implementation of renderer::render method.
  */
 
-#define CG_CUDA_BASED
+//#define CG_CUDA_BASED
 
 #include <QDebug>
 
@@ -26,6 +26,7 @@
 #include <boost/range/adaptor/transformed.hpp>
 #include <boost/numeric/conversion/cast.hpp>
 #include <boost/timer.hpp>
+#include <boost/assert.hpp>
 
 #include <ans/alpha/method.hpp>
 #include <ans/alpha/pimpl.hpp>
@@ -37,6 +38,8 @@
 #include "matrix_stack.hpp"
 #include "rasterize.hpp"
 #include "rasterize_impl.hpp"
+#include "concepts/viewport.hpp"
+#include "log.hpp"
 
 #ifdef CG_CUDA_BASED
     #include "gpu.hpp"
@@ -125,12 +128,47 @@ namespace cg
             boost::for_each(ps, [&](point &p){
                 hvps.push_back((gpu::host_vector3*)p.data());
             });
-            gpu::transform_point(*(gpu::host_matrix44*)m.data(), hvps);
+            gpu::transform_point_4D(*(gpu::host_matrix44*)m.data(), hvps);
 #else
             boost::for_each(ps, [&](point &p){
                 p = cml::transform_point(m, p);
             });
 #endif
+        }
+
+        /**
+         *  No frame buffer.
+         */
+        template<class Viewport>
+        void render_impl(Viewport &viewport, boost::mpl::false_) const;
+
+        /**
+         *  Viewport has its own depth buffer.
+         *  
+         *  @todo impl
+         */
+        template<class Viewport>
+        void render_impl(Viewport &viewport, boost::mpl::true_) const
+        {
+            BOOST_ASSERT_MSG(false, "pass");
+        }
+
+        template<class SinglePassReadableWritablePointRange, class Viewport>
+        static void from_world_to_screen(const SinglePassReadableWritablePointRange &ps, const Viewport &viewport);
+
+        template<class Viewport>
+        static matrix44 viewport_matrix(const Viewport &viewport)
+        {
+            matrix44 m;
+            cml::matrix_viewport(
+                m,
+                0.0,
+                boost::numeric_cast<double>(width(get_frame_buffer(viewport))),
+                0.0,
+                boost::numeric_cast<double>(height(get_frame_buffer(viewport))),
+                cml::z_clip_zero
+                );
+            return m;
         }
     };
 
@@ -138,11 +176,15 @@ namespace cg
     {
         typedef vertex vertex;
         const itriangle *i;
-        const vertex_container *vs;
+        vertex_container *vs;
 
         friend const vertex& a(const triangle &t) { return (*t.vs)[t.i->a]; }
         friend const vertex& b(const triangle &t) { return (*t.vs)[t.i->b]; }
         friend const vertex& c(const triangle &t) { return (*t.vs)[t.i->c]; }
+
+        friend vertex& a(triangle &t) { return (*t.vs)[t.i->a]; }
+        friend vertex& b(triangle &t) { return (*t.vs)[t.i->b]; }
+        friend vertex& c(triangle &t) { return (*t.vs)[t.i->c]; }
     };
 
     template<>
@@ -213,6 +255,61 @@ void cg::renderer::render(RenderTarget &target, const camera &cam) const
             set(target, x, y, cg::color(d, d, d, 1));
         }
     }
+#endif
+}
+
+template<class Viewport>
+void cg::renderer::render(Viewport &viewport) const
+{
+    ans::alpha::functional::method<renderer_method> method;
+    ++bofu::at_key<tags::render_count>(log);
+    boost::timer tm;
+    // depth buffer tag dispatch
+    method(this)->render_impl(viewport, typename traits::has_depth_buffer<Viewport>::type());
+    bofu::at_key<tags::render_time>(log) += tm.elapsed();
+}
+
+template<class Viewport>
+void cg::renderer_method::render_impl(Viewport &viewport, boost::mpl::false_) const
+{
+    typedef typename traits::camera<Viewport>::type camera;
+    typedef typename traits::frame_buffer<Viewport>::type frame_buffer;
+
+    // copy vertices in world space
+    vertex_container vs = data->vertices;
+    boost::timer tm;
+    from_world_to_screen(
+        vs | boad::transformed([](vertex &v)->point&{ return v.point; }),
+        viewport
+        );
+    bofu::at_key<tags::transform_time>(log) += tm.elapsed();
+
+    frame_buffer &target = get_frame_buffer(viewport);
+    depth_buffer zbuffer(width(target), height(target));
+    rasterize(target, zbuffer, data->triangles | boad::transformed([&vs](const itriangle &i){
+        return triangle(ans::make_struct(bofu::make_vector(&i, &vs)));
+    }));
+}
+
+template<class SinglePassReadableWritablePointRange, class Viewport>
+void cg::renderer_method::from_world_to_screen(
+    const SinglePassReadableWritablePointRange &ps, const Viewport &viewport)
+{
+    const camera &cam = get_camera(viewport);
+    const matrix44 m =
+        viewport_matrix(viewport) *
+        get_projection_matrix(cam) *
+        get_view_matrix(cam);
+#ifdef CG_CUDA_BASED
+    gpu::host_vector3_pointer_container hvps;
+    boost::for_each(ps, [&](point &p){
+        hvps.push_back((gpu::host_vector3*)p.data());
+    });
+    gpu::transform_point_4D(*(gpu::host_matrix44*)m.data(), hvps);
+#else
+    boost::for_each(ps, [&m](vector3 &p){
+        p = cml::transform_point_4D(m, p);
+    });
 #endif
 }
 

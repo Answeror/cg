@@ -41,6 +41,9 @@ namespace cg
         void pitch_around_target(radian pitch);
         void limited_pitch_around_target(radian pitch);
 
+        void yaw_around_world_y(radian yaw);
+        void pitch_around_inertial_x(radian pitch);
+
         const matrix44& view() const;
         const matrix44& projection() const;
 
@@ -70,6 +73,26 @@ namespace cg
     inline void limited_pitch_around_target(camera &cam, radian pitch)
     {
         cam.limited_pitch_around_target(pitch);
+    }
+
+    inline const matrix44& get_projection_matrix(const camera &cam)
+    {
+        return cam.projection();
+    }
+
+    inline const matrix44& get_view_matrix(const camera &cam)
+    {
+        return cam.view();
+    }
+
+    inline void yaw_around_world_y(camera &cam, radian yaw)
+    {
+        cam.yaw_around_world_y(yaw);
+    }
+
+    inline void pitch_around_inertial_x(camera &cam, radian pitch)
+    {
+        cam.pitch_around_inertial_x(pitch);
     }
 }
 

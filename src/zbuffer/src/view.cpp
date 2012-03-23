@@ -234,3 +234,9 @@ void cg::view::update_canvas()
         data->updated = true;
     }
 }
+
+void cg::view::update_camera(const boost::function<void(camera&)> &callback)
+{
+    callback(*data->camera);
+    data->updated = false;
+}

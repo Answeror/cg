@@ -19,6 +19,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <boost/weak_ptr.hpp>
+#include <boost/function/function_fwd.hpp>
 
 #include <ans/alpha/pimpl.hpp>
 
@@ -46,6 +47,8 @@ namespace cg
         QSize sizeHint() const;
 
         void update();
+
+        void update_camera(const boost::function<void(camera&)> &callback);
 
     protected Q_SLOTS:
         void update_canvas();
