@@ -30,6 +30,7 @@
 #include <QSharedPointer>
 #include <QTimer>
 #include <QStatusBar>
+#include <QDockWidget>
 
 #include <ans/alpha/pimpl.hpp>
 #include <ans/alpha/pimpl_impl.hpp>
@@ -42,6 +43,7 @@
 #include "core/model.hpp"
 #include "view.hpp"
 #include "core/log.hpp"
+#include "widgets/log_table.hpp"
 
 void cube(cg::renderer::primitive &p)
 {
@@ -161,6 +163,15 @@ namespace
             view_menu->addAction(data->actions.rotate);
         }
 
+        void init_log_table()
+        {
+            auto dock = new QDockWidget(tr("Log"));
+            addDockWidget(Qt::LeftDockWidgetArea, dock);
+            dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+            auto log = new cg::widgets::log_table(dock);
+            dock->setWidget(log);
+        }
+
         void init_ui()
         {
             init_menu();
@@ -169,16 +180,17 @@ namespace
             data->view = new cg::view(this, data->renderer);
             setCentralWidget(data->view);
             //this->layout()->setSizeConstraint(QLayout::SetFixedSize);
-            init_status_bar();
+            //init_status_bar();
             render_cube();
+            init_log_table();
         }
 
-        void init_status_bar()
-        {
-            auto tm = new QTimer(this);
-            connect(tm, SIGNAL(timeout()), this, SLOT(update_status_bar()));
-            tm->start(0);
-        }
+        //void init_status_bar()
+        //{
+        //    auto tm = new QTimer(this);
+        //    connect(tm, SIGNAL(timeout()), this, SLOT(update_status_bar()));
+        //    tm->start(0);
+        //}
 
         void init()
         {
@@ -290,19 +302,20 @@ QSize cg::mainwindow::sizeHint() const
     return base_type::sizeHint();
 }
 
-void cg::mainwindow::update_status_bar()
-{
-    if (bofu::at_key<tags::render_count>(log))
-    {
-    	statusBar()->showMessage(QString::fromStdString(str(
-            boost::format("average render time: %.3lf, average transform time: %.3lf, planf time: %.3f, make table time: %.3f")
-    		% (bofu::at_key<tags::render_time>(log) / bofu::at_key<tags::render_count>(log))
-            % (bofu::at_key<tags::transform_time>(log) / bofu::at_key<tags::render_count>(log))
-            % (bofu::at_key<tags::planf_time>(log) / bofu::at_key<tags::render_count>(log))
-            % (bofu::at_key<tags::make_table_time>(log) / bofu::at_key<tags::render_count>(log))
-            )));
-    }
-}
+//void cg::mainwindow::update_status_bar()
+//{
+//    if (bofu::at_key<tags::render_count>(log))
+//    {
+//    	statusBar()->showMessage(QString::fromStdString(str(
+//            boost::format("average render time: %.3lf, average transform time: %.3lf, planf time: %.3f, make table time: %.3f, update aet time: %.3f")
+//    		% (bofu::at_key<tags::render_time>(log) / bofu::at_key<tags::render_count>(log))
+//            % (bofu::at_key<tags::transform_time>(log) / bofu::at_key<tags::render_count>(log))
+//            % (bofu::at_key<tags::planf_time>(log) / bofu::at_key<tags::render_count>(log))
+//            % (bofu::at_key<tags::make_table_time>(log) / bofu::at_key<tags::render_count>(log))
+//            % (bofu::at_key<tags::update_aet_time>(log) / bofu::at_key<tags::render_count>(log))
+//            )));
+//    }
+//}
 
 void cg::mainwindow::rotate_one_step_about_y()
 {

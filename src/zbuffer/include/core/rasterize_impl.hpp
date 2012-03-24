@@ -409,56 +409,65 @@ namespace cg
                 make_table();
                 for_each(irange<int>(height(framebuffer) - 1, -1, -1), [&](int ynow){
                     // check if new edge touch this scanline
-                    for_each(et[ynow], [&](edge &e){
-                        auto p = e.p;
-                        BOOST_ASSERT(p);
-                        if (p->ae) { // already active
-                            BOOST_ASSERT(p->ae->half());
-                            p->ae->insert(&e);
-                        } else { // just become active
-                            aet.push_back(&e);
-                            p->ae = &aet.back();
-                        }
-                    });
+                    {
+                        boost::timer tm;
+                        for_each(et[ynow], [&](edge &e){
+                            auto p = e.p;
+                            BOOST_ASSERT(p);
+                            if (p->ae) { // already active
+                                BOOST_ASSERT(p->ae->half());
+                                p->ae->insert(&e);
+                            } else { // just become active
+                                aet.push_back(&e);
+                                p->ae = &aet.back();
+                            }
+                        });
+                        bofu::at_key<tags::make_aet_time>(log) += tm.elapsed();
+                    }
                     // draw
-                    for_each(aet, [&](active_edge &ae){
-                        BOOST_ASSERT(ae.complete());
-                        auto zx = ae.zl;
+                    {
+                        boost::timer tm;
+                        for_each(aet, [&](active_edge &ae){
+                            BOOST_ASSERT(ae.complete());
+                            auto zx = ae.zl;
 #ifdef CG_SHOW_COLOR
-                        const double xspan = ae.e.second->x - ae.e.first->x;
-                        BOOST_ASSERT(xspan >= 0);
-                        const color cspan = ae.e.second->c - ae.e.first->c;
-                        const color dcx = xspan > 0 ? cspan / xspan : color(0, 0, 0, 0);
-                        color cx = ae.e.first->c;
+                            const double xspan = ae.e.second->x - ae.e.first->x;
+                            BOOST_ASSERT(xspan >= 0);
+                            const color cspan = ae.e.second->c - ae.e.first->c;
+                            const color dcx = xspan > 0 ? cspan / xspan : color(0, 0, 0, 0);
+                            color cx = ae.e.first->c;
 #endif
-                        for_each(
-                            irange<int>(
+                            for_each(
+                                irange<int>(
                                 iround(ae.e.first->x),
                                 iround(ae.e.second->x) + 1
                                 ),
-                            [&](int x){
-                                auto z = get(depthbuffer, x, ynow);
-                                // z range from 0 to 1, 0 means near
-                                if (zx < z)
-                                {
-                                    set(depthbuffer, x, ynow, zx);
+                                [&](int x){
+                                    auto z = get(depthbuffer, x, ynow);
+                                    // z range from 0 to 1, 0 means near
+                                    if (zx < z)
+                                    {
+                                        set(depthbuffer, x, ynow, zx);
 #ifdef CG_SHOW_COLOR
-                                    // @todo shading
-                                    set(framebuffer, x, ynow, cx);
+                                        // @todo shading
+                                        set(framebuffer, x, ynow, cx);
 #else
-                                    auto reversed = 1 - zx;
-                                    set(framebuffer, x, ynow, color(reversed, reversed, reversed, 1));
+                                        auto reversed = 1 - zx;
+                                        set(framebuffer, x, ynow, color(reversed, reversed, reversed, 1));
 #endif
-                                }
-                                zx += ae.dzx;
+                                    }
+                                    zx += ae.dzx;
 #ifdef CG_SHOW_COLOR
-                                cx += dcx;
+                                    cx += dcx;
 #endif
                             }
-                        );
-                    });
+                            );
+                        });
+                        bofu::at_key<tags::draw_time>(log) += tm.elapsed();
+                    }
                     // update active edge table
                     {
+                        boost::timer tm;
                         auto i = aet.begin();
                         while (i != aet.end())
                         {
@@ -469,6 +478,7 @@ namespace cg
                                 i = aet.erase(i);
                             }
                         };
+                        bofu::at_key<tags::update_aet_time>(log) += tm.elapsed();
                     }
                 });
             }

@@ -38,7 +38,7 @@ namespace cg
     protected Q_SLOTS:
         void open();
 
-        void update_status_bar();
+        //void update_status_bar();
 
         void rotate_one_step_about_y();
 
