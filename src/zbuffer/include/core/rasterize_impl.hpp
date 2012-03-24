@@ -134,7 +134,6 @@ namespace cg
             {
                 /// 多边形所在平面方程系数
                 double a, b, c, d; 
-                int id;
                 /// 多边形对应的活化边(三角形只有一条活化边)
                 active_edge *ae;
             };
@@ -150,15 +149,14 @@ namespace cg
                 double dx;
                 /// 边跨越的扫描线数目
                 int dy;
-#ifdef CG_SHOW_COLOR
                 /// 边与扫描线交点处的颜色
+#ifdef CG_SHOW_COLOR
                 color c;
                 /// 相邻两条扫描线交点的颜色差
                 color dc;
-#endif
                 /// 顶点, a较高
-                vertex *a;
-                vertex *b;
+                vertex a, b;
+#endif
                 /// 边所属的多边形
                 polygon *p;
 
@@ -267,7 +265,36 @@ namespace cg
             active_edge_table aet;
 
             /// add one edge to edge table
-            void add_edge(polygon *po, vertex &u, vertex &v);
+            void add_edge(polygon *po, vertex u, vertex v)
+            {
+                auto a = p(u);
+                auto b = p(v);
+
+                if (y(a) < y(b))
+                {
+                    boost::swap(u, v);
+                    boost::swap(a, b);
+                }
+
+                int ymax = iround(y(a));
+                int ymin = iround(y(b));
+                double xx = x(a);
+                double zz = z(a);
+                int dy = ymax - ymin;
+
+                // @todo more code
+                if (0 == dy) return; // horizonal
+
+                double yspan = y(b) - y(a);
+                double dx = (x(a) - x(b)) / yspan;
+#ifdef CG_SHOW_COLOR
+                color cc = c(u);
+                color dc = (c(u) - c(v)) / yspan;
+                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
+#else
+                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, po))));
+#endif
+            }
 
             /// round y value
             template<class Vertex>
@@ -324,9 +351,9 @@ namespace cg
                 et = edge_table(height(framebuffer));
                 for_each(irange<int>(0, size(triangles)), [&](int id){
                     auto &t = triangles[id];
-                    auto &u = a(t);
-                    auto &v = b(t);
-                    auto &w = c(t);
+                    auto u = a(t);
+                    auto v = b(t);
+                    auto w = c(t);
 
                     // round y value to make x sorting easy
                     round(u);
@@ -342,7 +369,7 @@ namespace cg
                     polygon *po = nullptr;
                     boost::timer tm;
                     pt.push_back(po = new polygon(ans::make_struct(bofu::as_vector(
-                        bofu::push_back(bofu::push_back(planf(p(u), p(v), p(w)), id), nullptr)
+                        bofu::push_back(planf(p(u), p(v), p(w)), nullptr)
                         ))));
                     bofu::at_key<tags::planf_time>(log) += tm.elapsed();
                     //qDebug() << po->a << po->b << po->c << po->d;
@@ -446,37 +473,6 @@ namespace cg
                 });
             }
         };
-
-        template<class FrameBuffer, class DepthBuffer, class TriangleRange>
-        void rasterize<FrameBuffer, DepthBuffer, TriangleRange>::add_edge(polygon *po, vertex &u, vertex &v)
-        {
-            auto &a = p(u);
-            auto &b = p(v);
-
-            if (y(a) < y(b))
-            {
-                return add_edge(po, v, u);
-            }
-
-            int ymax = iround(y(a));
-            int ymin = iround(y(b));
-            double xx = x(a);
-            double zz = z(a);
-            int dy = ymax - ymin;
-
-            // @todo more code
-            if (0 == dy) return; // horizonal
-
-            double yspan = y(b) - y(a);
-            double dx = (x(a) - x(b)) / yspan;
-#ifdef CG_SHOW_COLOR
-            color cc = c(u);
-            color dc = (c(u) - c(v)) / yspan;
-            et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, &u, &v, po))));
-#else
-            et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, &u, &v, po))));
-#endif
-        }
     }
 
 

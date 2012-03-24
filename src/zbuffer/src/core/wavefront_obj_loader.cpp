@@ -182,6 +182,10 @@ namespace cg
                 if ("vn" == op) return parse_normal(first, last);
                 if ("f" == op) return parse_face(first, last);
                 if ("g" == op) return; /// @todo to be impl
+                if ("s" == op) return; /// @todo to be impl
+                if ("vt" == op) return; /// @todo to be impl
+                if ("mtllib" == op) return; /// @todo to be impl
+                if ("usemtl" == op) return; /// @todo to be impl
             } catch (boost::exception &e) {
                 e << error_info::operation(op);
                 throw;
