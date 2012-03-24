@@ -52,31 +52,40 @@ using cml::z;
 
 namespace cg
 {
-    namespace traits
-    {
-        template<class Triangle>
-        struct vertex;
-    }
-
-    namespace detail
+    namespace rasterize_detail
     {
         using boost::size;
         using boost::irange;
         using boost::for_each;
         using boost::math::iround;
 
-        template<class TriangleRange>
-        struct triangle_part
-        {
-        };
+        typedef cmlex::vector3 point;
 
-        template<class FrameBuffer, class DepthBuffer, class TriangleRange>
-        struct rasterize
+        namespace traits
         {
-            typedef typename boost::range_value<TriangleRange>::type triangle;
-            typedef typename traits::vertex<triangle>::type vertex;
+            template<class TriangleRange>
+            struct triangle
+            {
+                typedef typename boost::range_value<TriangleRange>::type type;
+            };
+
+            template<class TriangleRange>
+            struct vertex
+            {
+                typedef typename cg::traits::vertex<
+                    typename triangle<TriangleRange>::type
+                >::type type;
+            };
+        }
+
+        template<class Vertex>
+        struct data_type
+        {
+            typedef Vertex vertex;
+
             struct edge;
             struct active_edge;
+
             struct polygon
             {
                 /// 多边形所在平面方程系数
@@ -84,8 +93,9 @@ namespace cg
                 /// 多边形对应的活化边(三角形只有一条活化边)
                 active_edge *ae;
             };
-            /// use ptr_vector to ensure point valid
-            typedef boost::ptr_vector<polygon> polygon_table;
+
+            typedef std::vector<polygon> polygon_table;
+
             struct edge
             {
                 /// 边的上端点x坐标
@@ -106,6 +116,7 @@ namespace cg
 #endif
                 /// 边所属的多边形
                 polygon *p;
+                edge *next;
 
                 /// update position and color
                 void update()
@@ -121,8 +132,12 @@ namespace cg
 
                 bool valid() { return dy > 0; }
             };
+
+            typedef std::vector<edge> edge_buffer;
+
             /// use ptr_vector to ensure point valid
-            typedef std::vector<boost::ptr_vector<edge> > edge_table;
+            typedef std::vector<edge*> edge_table;
+
             struct active_edge
             {
                 ///// 左交点的x坐标
@@ -200,71 +215,105 @@ namespace cg
 
                 bool complete() { return e.first && e.second; }
             };
-            /// use list to 1) ensure point valid; 2) fast delete
-            typedef std::list<active_edge> active_edge_table;
-            typedef cmlex::vector3 point;
 
-            FrameBuffer &framebuffer;
-            DepthBuffer &depthbuffer;
-            const TriangleRange &triangles;
+            typedef std::list<active_edge> active_edge_table;
+        };
+
+        template<class Vertex>
+        struct data
+        {
+            typedef typename data_type<Vertex>::edge edge;
+            typedef typename data_type<Vertex>::edge_buffer edge_buffer;
+            typedef typename data_type<Vertex>::edge_table edge_table;
+            typedef typename data_type<Vertex>::active_edge active_edge;
+            typedef typename data_type<Vertex>::active_edge_table active_edge_table;
+            typedef typename data_type<Vertex>::polygon polygon;
+            typedef typename data_type<Vertex>::polygon_table polygon_table;
+            typedef typename data_type<Vertex>::vertex vertex;
+
             polygon_table pt;
+            edge_buffer eb;
             edge_table et;
             active_edge_table aet;
 
             /// add one edge to edge table
-            void add_edge(polygon *po, vertex u, vertex v)
+            void add_edge(polygon *po, const vertex &u, const vertex &v);
+        };
+
+        template<class Vertex>
+        void data<Vertex>::add_edge(polygon *po, const vertex &u, const vertex &v)
+        {
+            auto &a = get_point(u);
+            auto &b = get_point(v);
+
+            if (y(a) < y(b))
             {
-                auto a = p(u);
-                auto b = p(v);
+                return add_edge(po, v, u);
+            }
 
-                if (y(a) < y(b))
-                {
-                    boost::swap(u, v);
-                    boost::swap(a, b);
-                }
+            int ymax = iround(y(a));
+            int ymin = iround(y(b));
+            double xx = x(a);
+            double zz = z(a);
+            int dy = ymax - ymin;
 
-                int ymax = iround(y(a));
-                int ymin = iround(y(b));
-                double xx = x(a);
-                double zz = z(a);
-                int dy = ymax - ymin;
+            // @todo more code
+            if (0 == dy) return; // horizonal
 
-                // @todo more code
-                if (0 == dy) return; // horizonal
-
-                double yspan = y(b) - y(a);
-                double dx = (x(a) - x(b)) / yspan;
+            double yspan = y(b) - y(a);
+            double dx = (x(a) - x(b)) / yspan;
 #ifdef CG_SHOW_COLOR
-                color cc = c(u);
-                color dc = (c(u) - c(v)) / yspan;
-                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
+            color cc = c(u);
+            color dc = (c(u) - c(v)) / yspan;
+            et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
 #else
-                et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, po))));
+            eb.push_back(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, po, et[ymax])));
+            et[ymax] = &eb.back();
 #endif
-            }
+        }
 
-            /// round y value
-            template<class Vertex>
-            void round(Vertex &v)
-            {
-                auto p = get_point(v);
-                y(p) = boost::math::iround(y(p));
-                set_point(v, p);
-            }
+        /// round vertex y value
+        template<class Vertex>
+        inline void round_y(Vertex &v)
+        {
+            auto p = get_point(v);
+            y(p) = boost::math::iround(y(p));
+            set_point(v, p);
+        }
 
+        template<class FrameBuffer, class DepthBuffer, class TriangleRange>
+        struct rasterize :
+            data<typename traits::vertex<TriangleRange>::type>
+        {
+            typedef typename traits::triangle<TriangleRange>::type triangle;
+            typedef typename traits::vertex<TriangleRange>::type vertex;
+            typedef typename data_type<vertex>::edge edge;
+            typedef typename data_type<vertex>::edge_table edge_table;
+            typedef typename data_type<vertex>::active_edge active_edge;
+            typedef typename data_type<vertex>::active_edge_table active_edge_table;
+            typedef typename data_type<vertex>::polygon polygon;
+            typedef typename data_type<vertex>::polygon_table polygon_table;
+            typedef data<vertex> data;
+
+            FrameBuffer &framebuffer;
+            DepthBuffer &depthbuffer;
+            const TriangleRange &triangles;
+            using data::pt;
+            using data::eb;
+            using data::et;
+            using data::aet;
 
             /// for showing depth in framebuffer
             double zmin, zmax;
 
-            template<class Vertex>
-            void normalize_point_depth(Vertex &v)
+            void normalize_point_depth(vertex &v)
             {
                 auto p = get_point(v);
                 z(p) = (z(p) - zmin) / (zmax - zmin);
                 set_point(v, p);
             }
 
-            void normalize_depth()
+            void calc_depth_range()
             {
                 zmin = 1;
                 zmax = 0;
@@ -286,16 +335,20 @@ namespace cg
                 });
             }
 
+            using data::add_edge;
+
             /// make polygon and edge table
             /// 用了大概1/4~1/3的时间(90ms), 可并行化
             void make_table()
             {
                 boost::timer tm;
 #ifndef CG_SHOW_COLOR
-                normalize_depth();
+                calc_depth_range();
 #endif
                 //boost::timer tm;
-                et = edge_table(height(framebuffer));
+                eb.reserve(3 * size(triangles));
+                pt.reserve(size(triangles));
+                et.resize(height(framebuffer), nullptr);
                 for_each(irange<int>(0, size(triangles)), [&](int id){
                     auto &t = triangles[id];
                     auto u = a(t);
@@ -303,9 +356,9 @@ namespace cg
                     auto w = c(t);
 
                     // round y value to make x sorting easy
-                    round(u);
-                    round(v);
-                    round(w);
+                    round_y(u);
+                    round_y(v);
+                    round_y(w);
 #ifndef CG_SHOW_COLOR
                     normalize_point_depth(u);
                     normalize_point_depth(v);
@@ -313,12 +366,12 @@ namespace cg
 #endif
                     //auto ymax = iround(std::max(y(_a), std::max(y(_b), y(_c))));
                     //auto ymin = iround(std::min(y(_a), std::min(y(_b), y(_c))));
-                    polygon *po = nullptr;
-                    boost::timer tm;
-                    pt.push_back(po = new polygon(ans::make_struct(bofu::as_vector(
+                    //boost::timer tm;
+                    pt.push_back(ans::make_struct(bofu::as_vector(
                         bofu::push_back(planf(p(u), p(v), p(w)), nullptr)
-                        ))));
-                    bofu::at_key<tags::planf_time>(log) += tm.elapsed();
+                        )));
+                    auto po = &pt.back();
+                    //bofu::at_key<tags::planf_time>(log) += tm.elapsed();
                     //qDebug() << po->a << po->b << po->c << po->d;
                     BOOST_ASSERT(std::abs(cml::dot(cmlex::vector3(po->a, po->b, po->c), p(u)) + po->d) < 1e-8);
                     // remove back face
@@ -358,17 +411,18 @@ namespace cg
                     // check if new edge touch this scanline
                     {
                         boost::timer tm;
-                        for_each(et[ynow], [&](edge &e){
-                            auto p = e.p;
+                        for (edge *e = et[ynow]; e; e = e->next)
+                        {
+                            auto p = e->p;
                             BOOST_ASSERT(p);
                             if (p->ae) { // already active
                                 BOOST_ASSERT(p->ae->half());
-                                p->ae->insert(&e);
+                                p->ae->insert(e);
                             } else { // just become active
-                                aet.push_back(&e);
+                                aet.push_back(e);
                                 p->ae = &aet.back();
                             }
-                        });
+                        }
                         bofu::at_key<tags::make_aet_time>(log) += tm.elapsed();
                     }
                     // draw
@@ -450,7 +504,7 @@ namespace cg
     {
         BOOST_ASSERT(width(framebuffer) == width(depthbuffer));
         BOOST_ASSERT(height(framebuffer) == height(depthbuffer));
-        detail::rasterize<FrameBuffer, DepthBuffer, TriangleRange>(framebuffer, depthbuffer, triangles);
+        rasterize_detail::rasterize<FrameBuffer, DepthBuffer, TriangleRange>(framebuffer, depthbuffer, triangles);
     }
 }
 

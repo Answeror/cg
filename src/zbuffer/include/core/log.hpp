@@ -61,7 +61,7 @@ namespace cg
         ((int, render_count, "render count"))
         ((double, render_time, "render time"))
         ((double, transform_time, "transform time"))
-        ((double, planf_time, "eval plane formular time"))
+        //((double, planf_time, "eval plane formular time"))
         ((double, make_table_time, "make edge table time"))
         ((double, make_aet_time, "make active edge table time"))
         ((double, draw_time, "draw time"))

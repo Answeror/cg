@@ -14,6 +14,24 @@
  *  
  */
 
+#include <boost/utility/declval.hpp>
+
+#include <ans/type_traits/value_type.hpp>
+
+namespace cg
+{
+    namespace traits
+    {
+        template<class Triangle>
+        struct vertex
+        {
+            typedef typename ans::value_type<
+                decltype(a(boost::declval<Triangle>()))
+            >::type type;
+        };
+    }
+}
+
 #include <boost/concept/detail/concept_def.hpp>
 namespace cg
 {
