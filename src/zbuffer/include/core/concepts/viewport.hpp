@@ -15,23 +15,12 @@
  */
 
 #include <boost/mpl/bool.hpp>
-#include <boost/type_traits/remove_const.hpp>
-#include <boost/type_traits/remove_reference.hpp>
 #include <boost/utility/declval.hpp>
+
+#include <ans/type_traits/value_type.hpp>
 
 namespace cg
 {
-    namespace detail
-    {
-        template<class T>
-        struct value_type
-        {
-            typedef typename boost::remove_const<
-                typename boost::remove_reference<T>::type
-            >::type type;
-        };
-    }
-    
     namespace traits
     {
         /**
@@ -48,7 +37,7 @@ namespace cg
         template<class Viewport>
         struct camera
         {
-            typedef typename detail::value_type<
+            typedef typename ans::value_type<
                 decltype(get_camera(boost::declval<Viewport>()))
             >::type type;
         };
@@ -56,7 +45,7 @@ namespace cg
         template<class Viewport>
         struct frame_buffer
         {
-            typedef typename detail::value_type<
+            typedef typename ans::value_type<
                 decltype(get_frame_buffer(boost::declval<Viewport>()))
             >::type type;
         };

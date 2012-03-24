@@ -42,67 +42,9 @@
 #include "color.hpp"
 #include "planf.hpp"
 #include "log.hpp"
-
-#pragma region concepts
-#include <boost/concept/detail/concept_def.hpp>
-namespace cg
-{
-    namespace concepts
-    {
-        BOOST_concept(FrameBuffer, (B))
-        {
-            BOOST_CONCEPT_USAGE(FrameBuffer)
-            {
-                set(b, 0, 0, c);
-                const_constraints(b);
-            }
-            void const_constraints(const B &cb)
-            {
-                width(cb);
-                height(cb);
-            }
-
-            B b;
-            color c;
-        };
-
-        BOOST_concept(DepthBuffer, (B))
-        {
-            BOOST_CONCEPT_USAGE(DepthBuffer)
-            {
-                set(b, 0, 0, d);
-                const_constraints(b);
-            }
-            void const_constraints(const B &cb)
-            {
-                width(cb);
-                height(cb);
-                get(cb, 0, 0);
-            }
-
-            B b;
-            double d;
-        };
-
-        BOOST_concept(Triangle, (T))
-        {
-            BOOST_CONCEPT_USAGE(Triangle)
-            {
-                const_constraints(t);
-            }
-            void const_constraints(const T &ct)
-            {
-                a(ct);
-                b(ct);
-                c(ct);
-            }
-
-            T t;
-        };
-    }
-}
-#include <boost/concept/detail/concept_undef.hpp>
-#pragma endregion concepts
+#include "concepts/depth_buffer.hpp"
+#include "concepts/frame_buffer.hpp"
+#include "concepts/triangle.hpp"
 
 using cml::x;
 using cml::y;
@@ -122,6 +64,11 @@ namespace cg
         using boost::irange;
         using boost::for_each;
         using boost::math::iround;
+
+        template<class TriangleRange>
+        struct triangle_part
+        {
+        };
 
         template<class FrameBuffer, class DepthBuffer, class TriangleRange>
         struct rasterize
