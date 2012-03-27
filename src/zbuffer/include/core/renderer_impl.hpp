@@ -195,7 +195,7 @@ namespace cg
 
     struct depth_buffer
     {
-        cml::matrixd data;
+        cml::matrixd_c data;
 
         depth_buffer(int width, int height) : data(height, width)
         {
