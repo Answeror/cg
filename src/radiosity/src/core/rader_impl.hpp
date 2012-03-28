@@ -23,13 +23,22 @@
 #include <boost/property_map/vector_property_map.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <boost/range/algorithm/for_each.hpp>
+#include <boost/range/algorithm/max_element.hpp>
+#include <boost/range/algorithm_ext/push_back.hpp>
+#include <boost/range/adaptor/map.hpp>
 #include <boost/range/irange.hpp>
 #include <boost/assert.hpp>
 
 #include "rader.hpp"
+#include "ffengine.hpp"
+#include "ffengine_impl.hpp"
+
+namespace boad = boost::adaptors;
 
 namespace
 {
+    const int MAX_STEP = 10;
+
     template<class Mesh>
     struct rader_impl
     {
@@ -38,14 +47,16 @@ namespace
         typedef typename cg::mesh_traits::patch<mesh_type>::type patch;
         typedef typename std::vector<int> index_container;
         typedef typename boost::vector_property_map<real_t> patch_real_property_map;
-        typedef typename boost::associative_property_map<
-            std::map<typename cg::patch_traits::index_type<patch>::type, double>
-        > ff_property_map;
+        typedef std::map<typename cg::patch_traits::index_type<patch>::type, double> ffmap;
+        typedef typename boost::associative_property_map<ffmap> ff_property_map;
         typedef int patch_index;
+        typedef typename cg::patch_traits::handle_type<patch>::type patch_handle;
 
         mesh_type *mesh;
         patch_real_property_map radiosity;
         patch_real_property_map rest_radiosity;
+        cg::ffengine<Mesh> ffeng;
+        int step_count;
 
         /// check if terminate condition satisfied
         bool terminate();
@@ -58,9 +69,9 @@ namespace
         /// init context
         void init(Mesh *mesh);
 
-        int select_shooter();
+        patch_handle select_shooter();
 
-        void calc_form_factors(patch_index shooter_id, ff_property_map &F, index_container &ids);
+        void calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids);
     };
 }
 
@@ -118,6 +129,8 @@ void rader_impl<Mesh>::init(Mesh *mesh_)
 {
     mesh = mesh_;
 
+    ffeng.init(mesh);
+
     boost::for_each(patches(*mesh), [&](typename patch &p){
         put(radiosity, index(p), emission(p));
         put(rest_radiosity, index(p), emission(p));
@@ -132,19 +145,23 @@ void rader_impl<Mesh>::operator ()(Mesh *mesh_)
     // subdivide mesh to small and uniform patches
     subdivide(*mesh, max_scale(*mesh));
 
+    step_count = 0;
     while (!terminate())
     {
         step();
+        ++step_count;
     }
 }
 
 template<class Mesh>
 void rader_impl<Mesh>::step()
 {
-    auto shooter_id = select_shooter();
-    ff_property_map F;
+    auto shooter = select_shooter();
+    auto shooter_id = index(shooter);
+    ffmap _F;
+    ff_property_map F(_F);
     index_container ids;
-    calc_form_factors(shooter_id, F, ids);
+    calc_form_factors(shooter, _F, ids);
     //BOOST_ASSERT(boost::size(F) == boost::size(ids));
     boost::for_each(ids, [&](int reciver_id){
         auto &p = get_patch(*mesh, reciver_id);
@@ -160,8 +177,25 @@ void rader_impl<Mesh>::step()
 }
 
 template<class Mesh>
-void rader_impl<Mesh>::calc_form_factors(patch_index shooter_id, ff_property_map &F, index_container &ids)
+void rader_impl<Mesh>::calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids)
 {
+    ffeng(shooter, F);
+    boost::push_back(ids, F | boad::keys);
+}
+
+template<class Mesh>
+typename rader_impl<Mesh>::patch_handle rader_impl<Mesh>::select_shooter()
+{
+    return handle(*boost::max_element(patches(*mesh), [&](const patch &lhs, const patch &rhs)
+    {
+        return get(rest_radiosity, index(lhs)) < get(rest_radiosity, index(rhs));
+    }));
+}
+
+template<class Mesh>
+bool rader_impl<Mesh>::terminate()
+{
+    return step_count > MAX_STEP;
 }
 
 #endif // __RADER_IMPL_HPP_20120327214413__

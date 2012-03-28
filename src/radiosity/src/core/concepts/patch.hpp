@@ -18,12 +18,9 @@
 
 #include <boost/utility/declval.hpp>
 #include <boost/range.hpp>
-#include <boost/mpl/bool.hpp>
 
 #include <ans/type_traits/value_type.hpp>
 #include <ans/define_nested_traits.hpp>
-
-namespace mpl = boost::mpl;
 
 namespace cg { namespace patch_traits
 {
@@ -49,6 +46,11 @@ namespace cg { namespace patch_traits
         typename ans::value_type<
             decltype(index(boost::declval<Patch>()))
         >::type);
+
+    ANS_DEFINE_NESTED_TRAITS(Patch, handle_type, 
+        typename ans::value_type<
+            decltype(handle(boost::declval<Patch>()))
+        >::type);
 }}
 
 #include <boost/concept/assert.hpp>
@@ -56,6 +58,7 @@ namespace cg { namespace patch_traits
 
 #include "color3r.hpp"
 #include "vector3r.hpp"
+#include "patch_handle.hpp"
 
 #include <boost/concept/detail/concept_def.hpp>
 namespace cg { namespace concepts
@@ -65,10 +68,13 @@ namespace cg { namespace concepts
         typedef typename patch_traits::const_vertex_range<T>::type const_vertex_range;
         typedef typename patch_traits::vertex<T>::type vertex;
         typedef typename patch_traits::color_type<T>::type color_type;
+        typedef typename patch_traits::handle_type<T>::type handle_type;
+        typedef typename patch_traits::index_type<T>::type index_type;
 
         BOOST_CONCEPT_ASSERT((boost::SinglePassRangeConcept<const_vertex_range>));
         BOOST_CONCEPT_ASSERT((Color3r<color_type>));
         BOOST_CONCEPT_ASSERT((Vector3r<vertex>));
+        BOOST_CONCEPT_ASSERT((PatchHandle<handle_type>));
 
         BOOST_CONCEPT_USAGE(Patch)
         {
@@ -79,10 +85,14 @@ namespace cg { namespace concepts
 
         void const_constraints(const T &patch)
         {
-            size_t i = index(patch);
+            index_type i = index(patch);
+            handle_type h = handle(patch);
             const_vertex_range vs = vertices(patch);
             color_type c = emission(patch);
             color_type r = reflectivity(patch);
+            vertex cen = center(patch);
+            vertex norm = normal(patch);
+            int vc = vertex_count(patch);
             //color_type c = radiosity(patch);
             //color_type c = rest_radiosity(patch);
         }
