@@ -14,7 +14,6 @@
  *  OpenMesh adapt for the core functions.
  */
 
-#include <boost/range/adaptor/transformed.hpp>
 //#include <boost/range/adaptor/type_erased.hpp>
 
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
@@ -27,18 +26,23 @@
 #include "core/concepts/color3r.hpp"
 #include "core/concepts/patch_handle.hpp"
 
-namespace boad = boost::adaptors;
-
 namespace cg { namespace openmesh
 {
+    struct data_traits : OpenMesh::DefaultTraits
+    {
+        typedef OpenMesh::Vec3d Point;
+        typedef OpenMesh::Vec3d Normal;
+        typedef OpenMesh::Vec3d Color;
+    };
+    typedef OpenMesh::TriMesh_ArrayKernelT<data_traits> data_type;
     typedef double real_t;
-    typedef OpenMesh::TriMesh_ArrayKernelT<> data_type;
     struct trimesh;
     struct patch;
     typedef data_type::Point vector3r;
     typedef data_type::Color color3r;
     typedef data_type::FaceHandle patch_handle;
 }}
+
 
 struct cg::openmesh::trimesh
 {
@@ -59,7 +63,6 @@ struct cg::openmesh::trimesh
 
     trimesh(data_type *data) : data(data) {}
 
-private:
     data_type *data;
 };
 
@@ -76,27 +79,59 @@ struct cg::openmesh::patch
 
     patch(handle_type handle, trimesh *mesh) : handle(handle), mesh(mesh) {}
 
-private:
     handle_type handle;
     trimesh *mesh;
+
+    struct property_handles
+    {
+        //typedef OpenMesh::VPropHandleT<vector3r> center_type;
+        //static center_type& center();
+
+        typedef OpenMesh::FPropHandleT<color3r> emission_type;
+        static emission_type& emission();
+
+        typedef OpenMesh::FPropHandleT<color3r> reflectivity_type;
+        static reflectivity_type& reflectivity();
+    };
+
+    template<class T>
+    typename T::reference property(T &t) { return mesh->data->property(t, handle); }
+
+    template<class T>
+    typename T::const_reference property(T &t) const { return mesh->data->property(t, handle); }
 };
 
 namespace cg { namespace openmesh
 {
+    inline int index(patch_handle h) { return h.idx(); }
+
     void subdivide(trimesh &mesh, real_t max_size);
+
     mesh_traits::patch_range<trimesh>::type patches(trimesh &mesh);
+
     mesh_traits::const_vertex_range<trimesh>::type vertices(const trimesh &mesh);
 
-    patch_traits::handle_type<patch>::type handle(const patch &p);
-    patch_traits::index_type<patch>::type index(const patch &p);
-    patch_traits::const_vertex_range<patch>::type vertices(const patch &p);
-    patch_traits::color_type<patch>::type emission(const patch &p);
-    patch_traits::color_type<patch>::type reflectivity(const patch &p);
-    patch_traits::vertex<patch>::type center(const patch &p);
-    patch_traits::vertex<patch>::type normal(const patch &p);
-    int vertex_count(const patch &p);
+    inline patch_handle handle(const patch &p) { return p.handle; }
 
-    inline int index(patch_handle h) { return h.idx(); }
+    inline int index(const patch &p) { return index(handle(p)); }
+
+    patch_traits::const_vertex_range<patch>::type vertices(const patch &p);
+
+    inline color3r emission(const patch &p)
+    {
+        return p.property(patch::property_handles::emission());
+    }
+
+    inline color3r reflectivity(const patch &p)
+    {
+        return p.property(patch::property_handles::reflectivity());
+    }
+
+    patch_traits::vertex<patch>::type center(const patch &p);
+
+    inline patch_traits::vertex<patch>::type normal(const patch &p) { return p.mesh->data->normal(handle(p)); }
+
+    inline int vertex_count(const patch &p) { return p.mesh->data->valence(handle(p)); }
 
     inline real_t x(const vector3r &v) { return v[0]; }
     inline real_t y(const vector3r &v) { return v[1]; }
