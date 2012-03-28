@@ -244,10 +244,10 @@ namespace
 		glColor3ub((i)&0xff, (i>>8)&0xff, (i>>16)&0xff);
     }
 
-    template<class Patch>
-    inline void ensure_triangle(const Patch &t)
+    template<class Mesh, class Patch>
+    inline void ensure_triangle(const Mesh &mesh, const Patch &t)
     {
-        BOOST_ASSERT(3 == vertex_count(t));
+        BOOST_ASSERT(3 == vertex_count(mesh, t));
     }
 
     /// to select proper gl function
@@ -265,11 +265,11 @@ template<class Mesh>
 void ffengine_method<Mesh>::draw()
 {
 	glBegin(GL_TRIANGLES);
-    boost::for_each(patches(*data->mesh), [&](const patch &t)
+    boost::for_each(patches(*data->mesh), [&](const patch_handle &t)
 	{
-        ensure_triangle(t);
+        ensure_triangle(*data->mesh, t);
         encode_color(index(t));
-        boost::for_each(vertices(t), [&](const vector3r &v)
+        boost::for_each(vertices(*data->mesh, t), [&](const vector3r &v)
         {
 			glVertex3(x(v), y(v), z(v));
         });

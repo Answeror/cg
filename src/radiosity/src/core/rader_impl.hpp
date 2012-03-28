@@ -44,13 +44,12 @@ namespace
     {
         typedef Mesh mesh_type;
         typedef typename cg::mesh_traits::value_type<mesh_type>::type real_t;
-        typedef typename cg::mesh_traits::patch<mesh_type>::type patch;
+        typedef typename cg::mesh_traits::patch_handle<mesh_type>::type patch_handle;
+        typedef typename cg::patch_handle_traits::index_type<patch_handle>::type patch_index;
         typedef typename std::vector<int> index_container;
         typedef typename boost::vector_property_map<real_t> patch_real_property_map;
-        typedef std::map<typename cg::patch_traits::index_type<patch>::type, double> ffmap;
+        typedef std::map<patch_index, double> ffmap;
         typedef typename boost::associative_property_map<ffmap> ff_property_map;
-        typedef int patch_index;
-        typedef typename cg::patch_traits::handle_type<patch>::type patch_handle;
 
         mesh_type *mesh;
         patch_real_property_map radiosity;
@@ -131,7 +130,7 @@ void rader_impl<Mesh>::init(Mesh *mesh_)
 
     ffeng.init(mesh);
 
-    boost::for_each(patches(*mesh), [&](typename patch &p){
+    boost::for_each(patches(*mesh), [&](typename patch_handle &p){
         put(radiosity, index(p), emission(p));
         put(rest_radiosity, index(p), emission(p));
     });
@@ -186,7 +185,7 @@ void rader_impl<Mesh>::calc_form_factors(patch_handle shooter, ffmap &F, index_c
 template<class Mesh>
 typename rader_impl<Mesh>::patch_handle rader_impl<Mesh>::select_shooter()
 {
-    return handle(*boost::max_element(patches(*mesh), [&](const patch &lhs, const patch &rhs)
+    return handle(*boost::max_element(patches(*mesh), [&](const patch_handle &lhs, const patch_handle &rhs)
     {
         return get(rest_radiosity, index(lhs)) < get(rest_radiosity, index(rhs));
     }));

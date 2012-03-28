@@ -19,7 +19,7 @@
 #include <cuda_runtime.h>
 #include <cuda_texture_types.h>
 
-#include "glcu.hpp"
+#include "core/glcu.hpp"
 
 void HandleError( cudaError_t err,
                          const char *file,

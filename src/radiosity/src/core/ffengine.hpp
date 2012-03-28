@@ -21,7 +21,7 @@
 #include <ans/alpha/pimpl.hpp>
 
 #include "concepts/mesh.hpp"
-#include "concepts/patch.hpp"
+#include "concepts/patch_handle.hpp"
 
 namespace cg
 {
@@ -32,9 +32,8 @@ namespace cg
         typedef Mesh mesh_type;
         typedef typename mesh_traits::value_type<Mesh>::type real_t;
         typedef typename mesh_traits::vertex<Mesh>::type vector3r;
-        typedef typename mesh_traits::patch<Mesh>::type patch;
-        typedef typename patch_traits::index_type<patch>::type patch_index;
-        typedef typename patch_traits::handle_type<patch>::type patch_handle;
+        typedef typename mesh_traits::patch_handle<Mesh>::type patch_handle;
+        typedef typename patch_handle_traits::index_type<patch_handle>::type patch_index;
         typedef std::map<patch_index, real_t> ffcontainer;
 
     public:

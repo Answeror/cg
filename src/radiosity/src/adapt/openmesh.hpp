@@ -21,66 +21,32 @@
 #include <ans/range/meta/make_any_range.hpp>
 
 #include "core/concepts/mesh.hpp"
-#include "core/concepts/patch.hpp"
 #include "core/concepts/vector3r.hpp"
 #include "core/concepts/color3r.hpp"
 #include "core/concepts/patch_handle.hpp"
 
 namespace cg { namespace openmesh
 {
+    typedef double real_t;
     struct data_traits : OpenMesh::DefaultTraits
     {
         typedef OpenMesh::Vec3d Point;
         typedef OpenMesh::Vec3d Normal;
         typedef OpenMesh::Vec3d Color;
     };
-    typedef OpenMesh::TriMesh_ArrayKernelT<data_traits> data_type;
-    typedef double real_t;
-    struct trimesh;
-    struct patch;
-    typedef data_type::Point vector3r;
-    typedef data_type::Color color3r;
-    typedef data_type::FaceHandle patch_handle;
-}}
-
-
-struct cg::openmesh::trimesh
-{
-    typedef data_type data_type;
-    typedef data_type::FaceHandle patch_handle;
+    typedef OpenMesh::TriMesh_ArrayKernelT<data_traits> trimesh;
     typedef int patch_index;
-    typedef vector3r vertex;
-    typedef patch patch;
+    typedef trimesh::Point vector3r;
+    typedef trimesh::Color color3r;
+    typedef trimesh::FaceHandle patch_handle;
     typedef ans::range::meta::make_any_range<
-        patch&,
+        patch_handle,
         boost::single_pass_traversal_tag
     >::type patch_range;
     typedef ans::range::meta::make_any_range<
-        const vertex&,
+        const vector3r&,
         boost::single_pass_traversal_tag
     >::type const_vertex_range;
-    typedef real_t value_type;
-
-    trimesh(data_type *data) : data(data) {}
-
-    data_type *data;
-};
-
-struct cg::openmesh::patch
-{
-    typedef trimesh::patch_handle handle_type;
-    typedef trimesh::patch_index index_type;
-    typedef trimesh::vertex vertex;
-    typedef color3r color_type;
-    typedef ans::range::meta::make_any_range<
-        const vertex&,
-        boost::single_pass_traversal_tag
-    >::type const_vertex_range;
-
-    patch(handle_type handle, trimesh *mesh) : handle(handle), mesh(mesh) {}
-
-    handle_type handle;
-    trimesh *mesh;
 
     struct property_handles
     {
@@ -93,12 +59,12 @@ struct cg::openmesh::patch
         typedef OpenMesh::FPropHandleT<color3r> reflectivity_type;
         static reflectivity_type& reflectivity();
     };
+}}
 
-    template<class T>
-    typename T::reference property(T &t) { return mesh->data->property(t, handle); }
-
-    template<class T>
-    typename T::const_reference property(T &t) const { return mesh->data->property(t, handle); }
+template<>
+struct cg::mesh_traits::value_type<cg::openmesh::trimesh>
+{
+    typedef cg::openmesh::real_t type;
 };
 
 namespace cg { namespace openmesh
@@ -107,31 +73,27 @@ namespace cg { namespace openmesh
 
     void subdivide(trimesh &mesh, real_t max_size);
 
-    mesh_traits::patch_range<trimesh>::type patches(trimesh &mesh);
+    patch_range patches(trimesh &mesh);
 
-    mesh_traits::const_vertex_range<trimesh>::type vertices(const trimesh &mesh);
+    const_vertex_range vertices(const trimesh &mesh);
 
-    inline patch_handle handle(const patch &p) { return p.handle; }
+    const_vertex_range vertices(const trimesh &mesh, patch_handle patch);
 
-    inline int index(const patch &p) { return index(handle(p)); }
-
-    patch_traits::const_vertex_range<patch>::type vertices(const patch &p);
-
-    inline color3r emission(const patch &p)
+    inline color3r emission(const trimesh &mesh, patch_handle patch)
     {
-        return p.property(patch::property_handles::emission());
+        return mesh.property(property_handles::emission(), patch);
     }
 
-    inline color3r reflectivity(const patch &p)
+    inline color3r reflectivity(const trimesh &mesh, patch_handle patch)
     {
-        return p.property(patch::property_handles::reflectivity());
+        return mesh.property(property_handles::reflectivity(), patch);
     }
 
-    patch_traits::vertex<patch>::type center(const patch &p);
+    vector3r center(const trimesh &mesh, patch_handle patch);
 
-    inline patch_traits::vertex<patch>::type normal(const patch &p) { return p.mesh->data->normal(handle(p)); }
+    inline vector3r normal(const trimesh &mesh, patch_handle patch) { return mesh.normal(patch); }
 
-    inline int vertex_count(const patch &p) { return p.mesh->data->valence(handle(p)); }
+    inline int vertex_count(const trimesh &mesh, patch_handle patch) { return mesh.valence(patch); }
 
     inline real_t x(const vector3r &v) { return v[0]; }
     inline real_t y(const vector3r &v) { return v[1]; }
@@ -155,6 +117,14 @@ namespace cg
     namespace
     {
         using openmesh::index;
+        using openmesh::subdivide;
+        using openmesh::patches;
+        using openmesh::vertices;
+        using openmesh::emission;
+        using openmesh::reflectivity;
+        using openmesh::center;
+        using openmesh::normal;
+        using openmesh::vertex_count;
         using openmesh::x;
         using openmesh::y;
         using openmesh::z;

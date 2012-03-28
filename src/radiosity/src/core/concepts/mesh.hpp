@@ -22,26 +22,35 @@
 
 namespace cg { namespace mesh_traits
 {
-    ANS_DEFINE_NESTED_TRAITS(Mesh, patch_range,
-        typename ans::value_type<
-            decltype(patches(boost::declval<Mesh&>()))
-        >::type);
-
-    ANS_DEFINE_NESTED_TRAITS(Mesh, patch,
-        typename boost::range_value<
-            typename patch_range<Mesh>::type
-        >::type);
-
-    /// const vertex range type of Mesh
+    /// const vertex range type of Patch
     ANS_DEFINE_NESTED_TRAITS(Mesh, const_vertex_range,
         typename ans::value_type<
             decltype(vertices(boost::declval<Mesh>()))
         >::type);
 
-    /// vertex type of Mesh
+    /// vertex type of Patch
     ANS_DEFINE_NESTED_TRAITS(Mesh, vertex,
         typename boost::range_value<
             typename const_vertex_range<Mesh>::type
+        >::type);
+
+    /// color type of Patch
+    ANS_DEFINE_NESTED_TRAITS(Mesh, color_type,
+        typename ans::value_type<
+            decltype(emission(
+                boost::declval<const Mesh&>(),
+                boost::declval<typename patch_handle<Mesh>::type>()
+                ))
+        >::type);
+
+    ANS_DEFINE_NESTED_TRAITS(Mesh, patch_range,
+        typename ans::value_type<
+            decltype(patches(boost::declval<Mesh&>()))
+        >::type);
+
+    ANS_DEFINE_NESTED_TRAITS(Mesh, patch_handle, 
+        typename boost::range_value<
+            typename patch_range<Mesh>::type
         >::type);
 
     /// real value type of Mesh
@@ -51,23 +60,25 @@ namespace cg { namespace mesh_traits
 #include <boost/concept/assert.hpp>
 #include <boost/range/concepts.hpp>
 
-#include "patch.hpp"
+#include "patch_handle.hpp"
 
 #include <boost/concept/detail/concept_def.hpp>
 namespace cg { namespace concepts
 {
     BOOST_concept(Mesh, (T))
     {
-        typedef typename patch_traits::const_vertex_range<T>::type const_vertex_range;
-        typedef typename patch_traits::vertex<T>::type vertex;
+        typedef typename mesh_traits::const_vertex_range<T>::type const_vertex_range;
+        typedef typename mesh_traits::vertex<T>::type vertex;
+        typedef typename mesh_traits::color_type<T>::type color_type;
+        typedef typename mesh_traits::patch_handle<T>::type patch_handle;
         typedef typename mesh_traits::patch_range<T>::type patch_range;
-        typedef typename mesh_traits::patch<T>::type patch;
         typedef typename mesh_traits::value_type<T>::type value_type;
 
-        BOOST_CONCEPT_ASSERT((boost::SinglePassRangeConcept<const_vertex_range>));
+        BOOST_CONCEPT_ASSERT((Color3r<color_type>));
         BOOST_CONCEPT_ASSERT((Vector3r<vertex>));
+        BOOST_CONCEPT_ASSERT((PatchHandle<patch_handle>));
         BOOST_CONCEPT_ASSERT((boost::SinglePassRangeConcept<patch_range>));
-        BOOST_CONCEPT_ASSERT((Patch<patch>));
+        BOOST_CONCEPT_ASSERT((boost::SinglePassRangeConcept<const_vertex_range>));
 
         BOOST_CONCEPT_USAGE(Mesh)
         {
@@ -80,11 +91,19 @@ namespace cg { namespace concepts
 
         void const_constraints(const T &mesh)
         {
-            vertices(mesh);
+            const_vertex_range cvs = vertices(mesh);
+
+            const_vertex_range pcvs = vertices(mesh, patch);
+            color_type c = emission(mesh, patch);
+            color_type r = reflectivity(mesh, patch);
+            vertex cen = center(mesh, patch);
+            vertex norm = normal(mesh, patch);
+            int vc = vertex_count(mesh, patch);
         }
 
     private:
         T mesh;
+        patch_handle patch;
     };
 }}
 #include <boost/concept/detail/concept_undef.hpp>
