@@ -2,6 +2,7 @@ get_filename_component(PARENT_PATH ${CMAKE_CURRENT_SOURCE_DIR} PATH)
 set(HEADER_PATH "${PARENT_PATH}/include")
 
 include_directories("${HEADER_PATH}/*")
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 file(GLOB_RECURSE HDRS "${HEADER_PATH}/*.hpp")
 file(GLOB_RECURSE SRCS *.hpp *.cpp *.cu)

@@ -17,16 +17,14 @@
 #include <boost/utility/declval.hpp>
 
 #include <ans/type_traits/value_type.hpp>
+#include <ans/define_nested_traits.hpp>
 
 namespace cg { namespace vector3r_traits
 {
-    template<class Vector>
-    struct value_type
-    {
-        typedef typename ans::value_type<
-            decltype(r(boost::declval<Vector>()))
-        >::type type;
-    };
+    ANS_DEFINE_NESTED_TRAITS(Vector, value_type,
+        typename ans::value_type<
+            decltype(x(boost::declval<Vector>()))
+        >::type);
 }}
 
 #include <boost/concept/detail/concept_def.hpp>

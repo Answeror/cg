@@ -11,10 +11,11 @@
 
 #include "core/rader.hpp"
 #include "core/rader_impl.hpp"
+#include "adapt/openmesh.hpp"
 
 int main()
 {
-    int m;
-    cg::rader(m);
+    cg::openmesh::data_type data;
+    cg::rader(cg::openmesh::trimesh(&data));
     return 0;
 }

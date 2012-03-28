@@ -28,6 +28,7 @@ namespace cg
         ((concepts::Mesh<Mesh>)),
         (void)
         ) rader(Mesh &mesh);
+    //void rader(Mesh &mesh);
 }
 
 #endif // __RADER_HPP_20120325224938__

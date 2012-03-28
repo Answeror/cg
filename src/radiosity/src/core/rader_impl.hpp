@@ -17,9 +17,11 @@
 #undef min
 #undef max
 #include <algorithm> // min, max
+#include <map> // for ff
 
 #include <boost/range/algorithm/for_each.hpp>
 #include <boost/property_map/vector_property_map.hpp>
+#include <boost/property_map/property_map.hpp>
 #include <boost/range/algorithm/for_each.hpp>
 #include <boost/range/irange.hpp>
 #include <boost/assert.hpp>
@@ -36,6 +38,9 @@ namespace
         typedef typename cg::mesh_traits::patch<mesh_type>::type patch;
         typedef typename std::vector<int> index_container;
         typedef typename boost::vector_property_map<real_t> patch_real_property_map;
+        typedef typename boost::associative_property_map<
+            std::map<typename cg::patch_traits::index_type<patch>::type, double>
+        > ff_property_map;
         typedef int patch_index;
 
         mesh_type *mesh;
@@ -55,7 +60,7 @@ namespace
 
         int select_shooter();
 
-        void calc_form_factors(patch_index shooter_id, patch_real_property_map &F, index_container &ids);
+        void calc_form_factors(patch_index shooter_id, ff_property_map &F, index_container &ids);
     };
 }
 
@@ -103,9 +108,9 @@ namespace
 }
 
 template<class Mesh>
-void cg::rader(Mesh &mesh)
+void rader(Mesh &mesh)
 {
-    rader_impl()(&mesh);
+    rader_impl<Mesh>()(&mesh);
 }
 
 template<class Mesh>
@@ -127,7 +132,7 @@ void rader_impl<Mesh>::operator ()(Mesh *mesh_)
     // subdivide mesh to small and uniform patches
     subdivide(*mesh, max_scale(*mesh));
 
-    while (!method(this)->terminate())
+    while (!terminate())
     {
         step();
     }
@@ -137,14 +142,17 @@ template<class Mesh>
 void rader_impl<Mesh>::step()
 {
     auto shooter_id = select_shooter();
-    patch_real_property_map F;
+    ff_property_map F;
     index_container ids;
     calc_form_factors(shooter_id, F, ids);
-    BOOST_ASSERT(boost::size(F) == boost::size(ids));
-    boost::for_each(boost::irange<int>(0, boost::size(F)), [&](int id){
-        auto reciver_id = ids[id];
+    //BOOST_ASSERT(boost::size(F) == boost::size(ids));
+    boost::for_each(ids, [&](int reciver_id){
         auto &p = get_patch(*mesh, reciver_id);
-        auto dr = calc_delta_radiosity(reflectivity(p), get(rest_radiosity, reciver_id), get(get(F, id), reciver_id));
+        auto dr = calc_delta_radiosity(
+            reflectivity(p),
+            get(rest_radiosity, reciver_id),
+            get(get(F, reciver_id), reciver_id)
+            );
         put(rest_radiosity, reciver_id, get(rest_radiosity, reciver_id) + dr);
         put(radiosity, reciver_id, get(radiosity, reciver_id) + dr);
     });
@@ -152,7 +160,7 @@ void rader_impl<Mesh>::step()
 }
 
 template<class Mesh>
-void rader_impl<Mesh>::calc_form_factors(patch_index shooter_id, patch_real_property_map &F, index_container &ids)
+void rader_impl<Mesh>::calc_form_factors(patch_index shooter_id, ff_property_map &F, index_container &ids)
 {
 }
 

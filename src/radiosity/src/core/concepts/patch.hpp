@@ -18,37 +18,37 @@
 
 #include <boost/utility/declval.hpp>
 #include <boost/range.hpp>
+#include <boost/mpl/bool.hpp>
 
 #include <ans/type_traits/value_type.hpp>
+#include <ans/define_nested_traits.hpp>
+
+namespace mpl = boost::mpl;
 
 namespace cg { namespace patch_traits
 {
     /// const vertex range type of Patch
-    template<class Patch>
-    struct const_vertex_range
-    {
-        typedef typename ans::value_type<
-            decltype(vertices(boost::declval<Patch>()))
-        >::type type;
-    };
+    ANS_DEFINE_NESTED_TRAITS(Patch, const_vertex_range,
+        typename ans::value_type<
+            decltype(vertices(boost::declval<T>()))
+        >::type);
 
     /// vertex type of Patch
-    template<class Patch>
-    struct vertex
-    {
-        typedef typename boost::range_value<
-            typename const_vertex_range<Patch>::type
-        >::type type;
-    };
+    ANS_DEFINE_NESTED_TRAITS(Patch, vertex,
+        typename boost::range_value<
+            typename const_vertex_range<T>::type
+        >::type);
 
     /// color type of Patch
-    template<class Patch>
-    struct color
-    {
-        typedef typename ans::value_type<
+    ANS_DEFINE_NESTED_TRAITS(Patch, color_type,
+        typename ans::value_type<
             decltype(emission(boost::declval<Patch>()))
-        >::type type;
-    };
+        >::type);
+
+    ANS_DEFINE_NESTED_TRAITS(Patch, index_type, 
+        typename ans::value_type<
+            decltype(index(boost::declval<Patch>()))
+        >::type);
 }}
 
 #include <boost/concept/assert.hpp>
@@ -64,7 +64,7 @@ namespace cg { namespace concepts
     {
         typedef typename patch_traits::const_vertex_range<T>::type const_vertex_range;
         typedef typename patch_traits::vertex<T>::type vertex;
-        typedef typename patch_traits::color<T>::type color_type;
+        typedef typename patch_traits::color_type<T>::type color_type;
 
         BOOST_CONCEPT_ASSERT((boost::SinglePassRangeConcept<const_vertex_range>));
         BOOST_CONCEPT_ASSERT((Color3r<color_type>));
