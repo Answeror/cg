@@ -53,6 +53,8 @@
 #ifndef LINEAR_H
 #define LINEAR_H
 
+#include <boost/function/function3.hpp>
+
 #include <OpenMesh/Tools/Subdivider/Uniform/SubdividerT.hh>
 #include <OpenMesh/Core/Utils/vector_cast.hh>
 #include <OpenMesh/Core/Utils/Property.hh>
@@ -64,7 +66,6 @@
 #else
 #  include <cmath>
 #endif
-
 
 //== NAMESPACE ================================================================
 
@@ -108,6 +109,8 @@ public:
 
   typedef std::pair< typename mesh_t::EdgeHandle, real_t > queueElement;
 
+  typedef boost::function<void(mesh_t&, typename mesh_t::FaceHandle, typename mesh_t::FaceHandle)> copy_property_t;
+
 public:
 
 
@@ -129,6 +132,11 @@ public:
 
   void set_max_edge_length(double _value) {
     max_edge_length_squared_ = _value * _value;
+  }
+
+  void set_copy_property(copy_property_t fn)
+  {
+      copy_property = fn;
   }
 
 protected:
@@ -198,7 +206,8 @@ protected:
                 typename MeshType::FaceHandle f0 = _m.face_handle(h0);
                 typename MeshType::FaceHandle f1 = _m.face_handle(h2);
 
-                _m.set_color(f1, _m.color(f0));
+                //_m.set_color(f1, _m.color(f0));
+                copy_property(_m, f0, f1);
             }
 
             if (!_m.is_boundary(o0))
@@ -206,7 +215,8 @@ protected:
                 typename MeshType::FaceHandle f2 = _m.face_handle(o1);
                 typename MeshType::FaceHandle f3 = _m.face_handle(o0);
 
-                _m.set_color(f2, _m.color(f3));
+                //_m.set_color(f2, _m.color(f3));
+                copy_property(_m, f3, f2);
             }
         }
 
@@ -237,6 +247,7 @@ protected:
 private: // data
   real_t max_edge_length_squared_;
 
+  copy_property_t copy_property;
 };
 
 } // END_NS_UNIFORM

@@ -85,6 +85,7 @@ namespace cg { namespace concepts
             patches(mesh);
             value_type max_size;
             subdivide(mesh, max_size);
+            set_radiosity(mesh, patch, color_type());
 
             const_constraints(mesh);
         }
@@ -96,9 +97,11 @@ namespace cg { namespace concepts
             const_vertex_range pcvs = vertices(mesh, patch);
             color_type c = emission(mesh, patch);
             color_type r = reflectivity(mesh, patch);
+            color_type(radiosity(mesh, patch));
             vertex cen = center(mesh, patch);
             vertex norm = normal(mesh, patch);
             int vc = vertex_count(mesh, patch);
+            int fc = patch_count(mesh);
         }
 
     private:

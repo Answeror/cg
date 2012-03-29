@@ -28,7 +28,7 @@ namespace cg
     template<class Mesh>
     class ffengine
     {
-    private:
+    protected:
         typedef Mesh mesh_type;
         typedef typename mesh_traits::value_type<Mesh>::type real_t;
         typedef typename mesh_traits::vertex<Mesh>::type vector3r;

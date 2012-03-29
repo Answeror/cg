@@ -58,6 +58,9 @@ namespace cg { namespace openmesh
 
         typedef OpenMesh::FPropHandleT<color3r> reflectivity_type;
         static reflectivity_type& reflectivity();
+
+        typedef OpenMesh::FPropHandleT<color3r> radiosity_type;
+        static radiosity_type& radiosity();
     };
 }}
 
@@ -69,11 +72,17 @@ struct cg::mesh_traits::value_type<cg::openmesh::trimesh>
 
 namespace cg { namespace openmesh
 {
+    inline real_t length(const vector3r &v) { return v.length(); }
+
     inline int index(patch_handle h) { return h.idx(); }
 
     void subdivide(trimesh &mesh, real_t max_size);
 
+    int patch_count(const trimesh &mesh);
+
     patch_range patches(trimesh &mesh);
+
+    inline patch_handle get_patch(const trimesh &mesh, int i) { return mesh.face_handle(i); }
 
     const_vertex_range vertices(const trimesh &mesh);
 
@@ -87,6 +96,16 @@ namespace cg { namespace openmesh
     inline color3r reflectivity(const trimesh &mesh, patch_handle patch)
     {
         return mesh.property(property_handles::reflectivity(), patch);
+    }
+
+    inline color3r radiosity(const trimesh &mesh, patch_handle patch)
+    {
+        return mesh.property(property_handles::radiosity(), patch);
+    }
+
+    inline void set_radiosity(trimesh &mesh, patch_handle patch, const color3r &value)
+    {
+        mesh.property(property_handles::radiosity(), patch) = value;
     }
 
     vector3r center(const trimesh &mesh, patch_handle patch);
@@ -112,32 +131,34 @@ namespace cg { namespace openmesh
     inline void set_b(color3r &c, real_t value) { c[2] = value; }
 }}
 
-namespace cg
+namespace
 {
-    namespace
-    {
-        using openmesh::index;
-        using openmesh::subdivide;
-        using openmesh::patches;
-        using openmesh::vertices;
-        using openmesh::emission;
-        using openmesh::reflectivity;
-        using openmesh::center;
-        using openmesh::normal;
-        using openmesh::vertex_count;
-        using openmesh::x;
-        using openmesh::y;
-        using openmesh::z;
-        using openmesh::set_x;
-        using openmesh::set_y;
-        using openmesh::set_z;
-        using openmesh::r;
-        using openmesh::g;
-        using openmesh::b;
-        using openmesh::set_r;
-        using openmesh::set_g;
-        using openmesh::set_b;
-    }
+    using cg::openmesh::length;
+    using cg::openmesh::index;
+    using cg::openmesh::subdivide;
+    using cg::openmesh::patch_count;
+    using cg::openmesh::patches;
+    using cg::openmesh::get_patch;
+    using cg::openmesh::vertices;
+    using cg::openmesh::emission;
+    using cg::openmesh::reflectivity;
+    using cg::openmesh::radiosity;
+    using cg::openmesh::set_radiosity;
+    using cg::openmesh::center;
+    using cg::openmesh::normal;
+    using cg::openmesh::vertex_count;
+    using cg::openmesh::x;
+    using cg::openmesh::y;
+    using cg::openmesh::z;
+    using cg::openmesh::set_x;
+    using cg::openmesh::set_y;
+    using cg::openmesh::set_z;
+    using cg::openmesh::r;
+    using cg::openmesh::g;
+    using cg::openmesh::b;
+    using cg::openmesh::set_r;
+    using cg::openmesh::set_g;
+    using cg::openmesh::set_b;
 }
 
 #endif // __OPENMESH_HPP_2012032800539__

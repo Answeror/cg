@@ -20,6 +20,12 @@
 
 namespace cg
 {
+    /**
+     *  Output mesh.
+     *  
+     *  Mesh face color will be set according to reflectivity.
+     *  Color channel value range from 0 to 255.
+     */
     void output(openmesh::trimesh &mesh, const std::string &path);
 }
 

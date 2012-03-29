@@ -24,11 +24,11 @@ namespace cg
     *  Do radiosity rendering.
     */
     template<class Mesh>
-    BOOST_CONCEPT_REQUIRES(
-        ((concepts::Mesh<Mesh>)),
-        (void)
-        ) rader(Mesh &mesh);
-    //void rader(Mesh &mesh);
+    //BOOST_CONCEPT_REQUIRES(
+    //    ((concepts::Mesh<Mesh>)),
+    //    (void)
+    //    ) rader(Mesh &mesh);
+    void rader(Mesh &mesh);
 }
 
 #endif // __RADER_HPP_20120325224938__

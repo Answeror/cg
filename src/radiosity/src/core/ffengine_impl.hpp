@@ -21,6 +21,8 @@
 #include <boost/exception/all.hpp>
 #include <boost/format.hpp>
 #include <boost/math/constants/constants.hpp>
+#include <boost/range/algorithm/for_each.hpp>
+#include <boost/range/adaptor/map.hpp>
 
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -30,6 +32,13 @@
 #include <ans/alpha/pimpl_impl.hpp>
 
 #include "ffengine.hpp"
+
+#ifdef _DEBUG
+#include <iostream>
+#include "ppm.hpp"
+#endif
+
+namespace boad = boost::adaptors;
 
 namespace
 {
@@ -97,17 +106,22 @@ namespace
                     static const real_t pi = boost::math::constants::pi<real_t>();
                     real_t cw = std::cos(pi * tw / (real_t)R);
                     real_t ch = std::cos(pi * th / (real_t)R);
-                    coeffs[i][j] = cw * ch;
+                    data->coeffs[i][j] = cw * ch;
                 }
             }
         }
     };
 
-    template<class T>
-    inline auto method(T *p) ->
-        decltype(ans::alpha::functional::method<ffengine_method>()(p))
+    template<class Mesh>
+    inline ffengine_method<Mesh>* method(cg::ffengine<Mesh> *p)
     {
-        return ans::alpha::functional::method<ffengine_method>()(p);
+        return ans::alpha::functional::method<ffengine_method<Mesh> >()(p);
+    }
+
+    template<class Mesh>
+    inline const ffengine_method<Mesh>* method(const cg::ffengine<Mesh> *p)
+    {
+        return ans::alpha::functional::method<ffengine_method<Mesh> >()(p);
     }
 }
 
@@ -146,34 +160,51 @@ void cg::ffengine<Mesh>::operator ()(patch_handle shooter, ffcontainer &ffs)
     GLsizei height = EDGE_LENGTH;
     auto area = width * height * 3;
     std::vector<unsigned char> buffer(area);
-    glReadPixels(0, 0, width, height, GL_BGR, GL_UNSIGNED_BYTE, screen);
+    glReadPixels(0, 0, width, height, GL_BGR, GL_UNSIGNED_BYTE, buffer.data());
+#ifdef _DEBUG
+    if (false)
+    {
+        cg::ppm::write(buffer.data(), width, height, "middle.ppm");
+        std::cout << "press any key...\n";
+        std::getchar();
+    }
+#endif
     for (int x = 128; x != (128 + 512); ++x)
     {
         for (int y = 128; y != (128 + 512); ++y)
         {
-            auto p = buffer + 3 * (x * height + y);
+            auto p = buffer.data() + 3 * (x * height + y);
             auto b = p[0];
             auto g = p[1];
             auto r = p[2];
             auto color = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
-            ffs[clr] += data->coeffs[x - 128][h - 128];
+            if (color < patch_count(*data->mesh))
+            {
+                ffs[color] += data->coeffs[x - 128][y - 128];
+            }
         }
     }
+
+	real_t S = 256.0f*256.0f+4*256.0f*128.0f;
+    boost::for_each(boad::values(ffs), [&](real_t &value)
+    {
+        value /= S;
+    });
 }
 
 template<class Mesh>
 void ffengine_method<Mesh>::render_viewport(
-    const GLint x,
-    const GLint y,
+    const GLint xx,
+    const GLint yy,
     const vector3r &c,
     const vector3r &at,
     const vector3r &up
     )
 {
-    glViewport(x,y, 256,256);
+    glViewport(xx, yy, 256,256);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(90, (double)EDGE_LENGTH/(double)EDGE_LENGTH, 1e-3, 50);
+    gluPerspective(90, (double)EDGE_LENGTH/(double)EDGE_LENGTH, 1e-3, 1e8);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     gluLookAt(x(c), y(c), z(c), x(at), y(at), z(at), x(up), y(up), z(up));
@@ -187,13 +218,13 @@ void ffengine_method<Mesh>::render_scene(patch_handle dest)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// destination triangle
-    auto &t0 = get_patch(*data->mesh, dest);
+    auto &t0 = dest;
 
 	// center of this triangle
-    auto c = center(t0);
+    auto c = center(*data->mesh, t0);
 	
 	// normal vector and inverse normal vector of this triangle
-    auto norm = normal(t0);
+    auto norm = normal(*data->mesh, t0);
     auto norm_m = -norm;
 	
     auto side = cross(norm, vector3r(1, 2, 3));
@@ -217,50 +248,50 @@ void ffengine_method<Mesh>::render_scene(patch_handle dest)
 	vector3r atD = c + vctD;
 	
 	// top
-	renderViewport(256, 256, c, at, vctA);
+	render_viewport(256, 256, c, at, vctA);
 	
 	// 1. side
-	renderViewport(256, 512, c, atA, norm_m);
+	render_viewport(256, 512, c, atA, norm_m);
 	
 	// opposite side
-	renderViewport(256, 0, c, atB, norm);
+	render_viewport(256, 0, c, atB, norm);
 	
 	// left side
-	renderViewport(0, 256, c, atC, vctA);
+	render_viewport(0, 256, c, atC, vctA);
 	
 	// right side
-	renderViewport(512, 256, c, atD, vctA);
+	render_viewport(512, 256, c, atD, vctA);
 	
 	// render
-	//glFlush();
-    glutSwapBuffers();
+	glFlush();
+    //glutSwapBuffers();
 }
 
 template<class Mesh>
 void ffengine_method<Mesh>::init_gl()
 {
-    const int argc = 1;
-    const char **argv = {"ffengine"};
+    int argc = 1;
+    char *argv = "ffengine";
 
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(width, height);
+    glutInit(&argc, &argv);
+    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA | GLUT_DEPTH);
+    glutInitWindowSize(EDGE_LENGTH, EDGE_LENGTH);
     glutCreateWindow("glcu");
-    glutDisplayFunc(&display);
-    glutReshapeFunc(&reshape);
+    //glutDisplayFunc(&display);
+    //glutReshapeFunc(&reshape);
     //glutIdleFunc(&render_scene);
 
     // Init GLEW
     auto err = glewInit();
     if (GLEW_OK != err)
     {
-        BOOST_THROW_EXCEPTION(std::runtime_error(glewGetErrorString(err)));
+        BOOST_THROW_EXCEPTION(std::runtime_error((const char*)glewGetErrorString(err)));
     }
     const char *requirements =
         "GL_VERSION_3_1 " 
         "GL_ARB_pixel_buffer_object "
         "GL_ARB_framebuffer_object "
-        "GL_ARB_copy_buffer " 
+        "GL_ARB_copy_buffer ";
     if (!glewIsSupported(requirements))
     {
         BOOST_THROW_EXCEPTION(std::runtime_error(str(
@@ -277,7 +308,7 @@ void ffengine_method<Mesh>::init_gl()
 	glViewport(0, 0, EDGE_LENGTH, EDGE_LENGTH);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(90, (double)EDGE_LENGTH/(double)EDGE_LENGTH, 1e-3, 50);
+	gluPerspective(90, (double)EDGE_LENGTH/(double)EDGE_LENGTH, 1e-3, 1e8);
 	glMatrixMode(GL_MODELVIEW);
 }
 

@@ -36,11 +36,30 @@ op::property_handles::reflectivity_type&
     return re;
 }
 
+op::property_handles::radiosity_type&
+    op::property_handles::radiosity()
+{
+    static radiosity_type ra;
+    return ra;
+}
+
 void op::subdivide(trimesh &mesh, real_t max_size)
 {
     OpenMesh::Subdivider::Uniform::LongestEdgeT<trimesh, real_t> sd;
     sd.set_max_edge_length(max_size);
+    sd.set_copy_property([](trimesh &mesh, patch_handle from, patch_handle to)
+    {
+        mesh.property(property_handles::emission(), to) = mesh.property(property_handles::emission(), from);
+        mesh.property(property_handles::reflectivity(), to) = mesh.property(property_handles::reflectivity(), from);
+        mesh.property(property_handles::radiosity(), to) = mesh.property(property_handles::radiosity(), from);
+    });
     sd(mesh, 0);
+    mesh.update_face_normals();
+}
+
+int op::patch_count(const trimesh &mesh)
+{
+    return mesh.n_faces();
 }
 
 op::patch_range op::patches(trimesh &mesh)

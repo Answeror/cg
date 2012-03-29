@@ -9,8 +9,8 @@
  */
 
 
-//#include "core/rader.hpp"
-//#include "core/rader_impl.hpp"
+#include "core/rader.hpp"
+#include "core/rader_impl.hpp"
 #include "adapt/openmesh.hpp"
 #include "io.hpp"
 #include "cornell_box.hpp"
@@ -19,7 +19,8 @@ namespace op = cg::openmesh;
 
 int main()
 {
-    auto mesh = cg::make_connell_box();
+    auto mesh = cg::make_cornell_box();
+    cg::rader(*mesh);
     cg::output(*mesh, "cornell_box.off");
     return 0;
 }

@@ -27,8 +27,10 @@ namespace
 
     void enable_properties(trimesh &mesh)
     {
+        mesh.request_face_normals();
         mesh.add_property(op::property_handles::emission());
         mesh.add_property(op::property_handles::reflectivity());
+        mesh.add_property(op::property_handles::radiosity());
     }
 
     void set_properties(trimesh &mesh, op::patch_handle patch, const clr3 &R, const clr3 &E)
@@ -108,7 +110,7 @@ namespace
     }
 }
 
-boost::shared_ptr<trimesh> cg::make_connell_box()
+boost::shared_ptr<trimesh> cg::make_cornell_box()
 {
     auto p = boost::make_shared<trimesh>();
     {
