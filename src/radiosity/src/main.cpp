@@ -8,17 +8,23 @@
  *  
  */
 
-#include <iostream>
-#include <OpenMesh/Core/IO/MeshIO.hh>
-
-#include <boost/range/algorithm/for_each.hpp>
 
 //#include "core/rader.hpp"
 //#include "core/rader_impl.hpp"
 #include "adapt/openmesh.hpp"
+#include "io.hpp"
+#include "cornell_box.hpp"
 
 namespace op = cg::openmesh;
 
+int main()
+{
+    auto mesh = cg::make_connell_box();
+    cg::output(*mesh, "cornell_box.off");
+    return 0;
+}
+
+#if 0
 void foo(op::trimesh &mesh)
 {
     typedef op::trimesh MyMesh;
@@ -193,7 +199,7 @@ void bar(op::trimesh &mesh)
 int main()
 {
     cg::openmesh::trimesh mesh;
-    //cg::rader(mesh);
+    cg::rader(mesh);
     mesh.request_face_colors();
     bar(mesh);
     //mesh.add_property(op::property_handles::emission());
@@ -231,3 +237,4 @@ int main()
 
     return 0;
 }
+#endif

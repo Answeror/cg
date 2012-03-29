@@ -32,12 +32,12 @@ namespace cg { namespace openmesh
     {
         typedef OpenMesh::Vec3d Point;
         typedef OpenMesh::Vec3d Normal;
-        typedef OpenMesh::Vec3d Color;
+        //typedef OpenMesh::Vec3d Color;
     };
     typedef OpenMesh::TriMesh_ArrayKernelT<data_traits> trimesh;
     typedef int patch_index;
     typedef trimesh::Point vector3r;
-    typedef trimesh::Color color3r;
+    typedef OpenMesh::Vec3d color3r;
     typedef trimesh::FaceHandle patch_handle;
     typedef ans::range::meta::make_any_range<
         patch_handle,

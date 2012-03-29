@@ -14,9 +14,13 @@
  *  
  */
 
+#include <vector> // store read pixals
+#include <cmath> // cos
+
 #include <boost/assert.hpp>
 #include <boost/exception/all.hpp>
 #include <boost/format.hpp>
+#include <boost/math/constants/constants.hpp>
 
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -27,12 +31,20 @@
 
 #include "ffengine.hpp"
 
+namespace
+{
+    const int EDGE_1 = 256;	 ///< size (in pixels) of hemi-cube edge
+    const int EDGE_2 = 2*EDGE_1;	///< EDGE_1 * 2 (size of important area in hemicube)
+    const int EDGE_LENGTH = 3*EDGE_1;	 ///< size (pixels) of render viewport
+}
+
 template<class Mesh>
 struct cg::ffengine<Mesh>::data_type
 {
     mesh_type *mesh;
     bool inited;
     bool gl_inited;
+    real_t coeffs[EDGE_2][EDGE_2];
 
     data_type() :
         mesh(nullptr),
@@ -43,10 +55,6 @@ struct cg::ffengine<Mesh>::data_type
 
 namespace
 {
-    const int EDGE_1 = 256;	 ///< size (in pixels) of hemi-cube edge
-    const int EDGE_2 = 2*EDGE_1;	///< EDGE_1 * 2 (size of important area in hemicube)
-    const int EDGE_LENGTH = 3*EDGE_1;	 ///< size (pixels) of render viewport
-
     template<class Mesh>
     struct ffengine_method : cg::ffengine<Mesh>
     {
@@ -76,6 +84,23 @@ namespace
          *  Draw triangles.
          */
         void draw();
+
+        void init_coeffs()
+        {
+            for (int i = 0; i != EDGE_2; ++i)
+            {
+                for (int j = 0; j != EDGE_2; ++j)
+                {
+                    unsigned tw = -EDGE_1 + i;
+                    unsigned th = -EDGE_1 + j;
+                    unsigned R = EDGE_2;
+                    static const real_t pi = boost::math::constants::pi<real_t>();
+                    real_t cw = std::cos(pi * tw / (real_t)R);
+                    real_t ch = std::cos(pi * th / (real_t)R);
+                    coeffs[i][j] = cw * ch;
+                }
+            }
+        }
     };
 
     template<class T>
@@ -107,6 +132,7 @@ void cg::ffengine<Mesh>::init(mesh_type *mesh)
         method(this)->init_gl();
         data->gl_inited = true;
     }
+    method(this)->init_coeffs();
     data->inited = true;
 }
 
@@ -115,6 +141,24 @@ void cg::ffengine<Mesh>::operator ()(patch_handle shooter, ffcontainer &ffs)
 {
     BOOST_ASSERT(data->inited);
     method(this)->render_scene(shooter);
+
+    GLsizei width = EDGE_LENGTH;
+    GLsizei height = EDGE_LENGTH;
+    auto area = width * height * 3;
+    std::vector<unsigned char> buffer(area);
+    glReadPixels(0, 0, width, height, GL_BGR, GL_UNSIGNED_BYTE, screen);
+    for (int x = 128; x != (128 + 512); ++x)
+    {
+        for (int y = 128; y != (128 + 512); ++y)
+        {
+            auto p = buffer + 3 * (x * height + y);
+            auto b = p[0];
+            auto g = p[1];
+            auto r = p[2];
+            auto color = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
+            ffs[clr] += data->coeffs[x - 128][h - 128];
+        }
+    }
 }
 
 template<class Mesh>
