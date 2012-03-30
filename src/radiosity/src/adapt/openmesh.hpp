@@ -32,7 +32,6 @@ namespace cg { namespace openmesh
     {
         typedef OpenMesh::Vec3d Point;
         typedef OpenMesh::Vec3d Normal;
-        //typedef OpenMesh::Vec3d Color;
     };
     typedef OpenMesh::TriMesh_ArrayKernelT<data_traits> trimesh;
     typedef int patch_index;
@@ -61,6 +60,9 @@ namespace cg { namespace openmesh
 
         typedef OpenMesh::FPropHandleT<color3r> radiosity_type;
         static radiosity_type& radiosity();
+
+        typedef OpenMesh::FPropHandleT<real_t> area_type;
+        static area_type& area();
     };
 }}
 
@@ -88,26 +90,6 @@ namespace cg { namespace openmesh
 
     const_vertex_range vertices(const trimesh &mesh, patch_handle patch);
 
-    inline color3r emission(const trimesh &mesh, patch_handle patch)
-    {
-        return mesh.property(property_handles::emission(), patch);
-    }
-
-    inline color3r reflectivity(const trimesh &mesh, patch_handle patch)
-    {
-        return mesh.property(property_handles::reflectivity(), patch);
-    }
-
-    inline color3r radiosity(const trimesh &mesh, patch_handle patch)
-    {
-        return mesh.property(property_handles::radiosity(), patch);
-    }
-
-    inline void set_radiosity(trimesh &mesh, patch_handle patch, const color3r &value)
-    {
-        mesh.property(property_handles::radiosity(), patch) = value;
-    }
-
     vector3r center(const trimesh &mesh, patch_handle patch);
 
     inline vector3r normal(const trimesh &mesh, patch_handle patch) { return mesh.normal(patch); }
@@ -129,7 +111,126 @@ namespace cg { namespace openmesh
     inline void set_r(color3r &c, real_t value) { c[0] = value; }
     inline void set_g(color3r &c, real_t value) { c[1] = value; }
     inline void set_b(color3r &c, real_t value) { c[2] = value; }
+
+    inline color3r emission(const trimesh &mesh, patch_handle patch)
+    {
+        return mesh.property(property_handles::emission(), patch);
+    }
+
+    inline color3r reflectivity(const trimesh &mesh, patch_handle patch)
+    {
+        return mesh.property(property_handles::reflectivity(), patch);
+    }
+
+    inline color3r radiosity(const trimesh &mesh, patch_handle patch)
+    {
+        return mesh.property(property_handles::radiosity(), patch);
+    }
+
+    inline void set_radiosity(trimesh &mesh, patch_handle patch, color3r value)
+    {
+        mesh.property(property_handles::radiosity(), patch) = value;
+    }
+
+    inline real_t area(const trimesh &mesh, patch_handle patch)
+    {
+        return mesh.property(property_handles::area(), patch);
+    }
 }}
+
+namespace cg { namespace openmesh { namespace channels
+{
+    namespace red
+    {
+        struct trimesh : cg::openmesh::trimesh {};
+
+        inline real_t emission(const trimesh &mesh, patch_handle patch)
+        {
+            return r(mesh.property(property_handles::emission(), patch));
+        }
+
+        inline real_t reflectivity(const trimesh &mesh, patch_handle patch)
+        {
+            return r(mesh.property(property_handles::reflectivity(), patch));
+        }
+
+        inline real_t radiosity(const trimesh &mesh, patch_handle patch)
+        {
+            return r(mesh.property(property_handles::radiosity(), patch));
+        }
+
+        inline void set_radiosity(trimesh &mesh, patch_handle patch, real_t value)
+        {
+            set_r(mesh.property(property_handles::radiosity(), patch), value);
+        }
+    }
+    namespace green
+    {
+        struct trimesh : cg::openmesh::trimesh {};
+
+        inline real_t emission(const trimesh &mesh, patch_handle patch)
+        {
+            return g(mesh.property(property_handles::emission(), patch));
+        }
+
+        inline real_t reflectivity(const trimesh &mesh, patch_handle patch)
+        {
+            return g(mesh.property(property_handles::reflectivity(), patch));
+        }
+
+        inline real_t radiosity(const trimesh &mesh, patch_handle patch)
+        {
+            return g(mesh.property(property_handles::radiosity(), patch));
+        }
+
+        inline void set_radiosity(trimesh &mesh, patch_handle patch, real_t value)
+        {
+            set_g(mesh.property(property_handles::radiosity(), patch), value);
+        }
+    }
+    namespace blue
+    {
+        struct trimesh : cg::openmesh::trimesh {};
+
+        inline real_t emission(const trimesh &mesh, patch_handle patch)
+        {
+            return b(mesh.property(property_handles::emission(), patch));
+        }
+
+        inline real_t reflectivity(const trimesh &mesh, patch_handle patch)
+        {
+            return b(mesh.property(property_handles::reflectivity(), patch));
+        }
+
+        inline real_t radiosity(const trimesh &mesh, patch_handle patch)
+        {
+            return b(mesh.property(property_handles::radiosity(), patch));
+        }
+
+        inline void set_radiosity(trimesh &mesh, patch_handle patch, real_t value)
+        {
+            set_b(mesh.property(property_handles::radiosity(), patch), value);
+        }
+    }
+}}}
+
+template<>
+struct cg::mesh_traits::value_type<cg::openmesh::channels::red::trimesh>
+{
+    typedef cg::openmesh::real_t type;
+};
+
+template<>
+struct cg::mesh_traits::value_type<cg::openmesh::channels::green::trimesh>
+{
+    typedef cg::openmesh::real_t type;
+};
+
+template<>
+struct cg::mesh_traits::value_type<cg::openmesh::channels::blue::trimesh>
+{
+    typedef cg::openmesh::real_t type;
+};
 
 namespace
 {
@@ -140,10 +241,6 @@ namespace
     using cg::openmesh::patches;
     using cg::openmesh::get_patch;
     using cg::openmesh::vertices;
-    using cg::openmesh::emission;
-    using cg::openmesh::reflectivity;
-    using cg::openmesh::radiosity;
-    using cg::openmesh::set_radiosity;
     using cg::openmesh::center;
     using cg::openmesh::normal;
     using cg::openmesh::vertex_count;
@@ -159,6 +256,13 @@ namespace
     using cg::openmesh::set_r;
     using cg::openmesh::set_g;
     using cg::openmesh::set_b;
+
+    /// use specific channels
+    using cg::openmesh::emission;
+    using cg::openmesh::reflectivity;
+    using cg::openmesh::radiosity;
+    using cg::openmesh::set_radiosity;
+    using cg::openmesh::area;
 }
 
 #endif // __OPENMESH_HPP_2012032800539__

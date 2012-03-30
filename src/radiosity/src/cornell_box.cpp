@@ -31,12 +31,19 @@ namespace
         mesh.add_property(op::property_handles::emission());
         mesh.add_property(op::property_handles::reflectivity());
         mesh.add_property(op::property_handles::radiosity());
+        mesh.add_property(op::property_handles::area());
     }
 
-    void set_properties(trimesh &mesh, op::patch_handle patch, const clr3 &R, const clr3 &E)
+    void set_properties(trimesh &mesh, op::patch_handle patch, const clr3 &R, const clr3 &E, real_t A)
     {
         mesh.property(op::property_handles::emission(), patch) = E;
         mesh.property(op::property_handles::reflectivity(), patch) = R;
+        mesh.property(op::property_handles::area(), patch) = A;
+    }
+
+    inline real_t calc_area(const vec3 &x, const vec3 &y)
+    {
+        return 0.5 * cross(x, y).length();
     }
 
     void quad(
@@ -54,8 +61,9 @@ namespace
             mesh.add_vertex(p + x + y),
             mesh.add_vertex(p + y)
         };
-        set_properties(mesh, mesh.add_face(vs[0], vs[1], vs[2]), R, E);
-        set_properties(mesh, mesh.add_face(vs[2], vs[3], vs[0]), R, E);
+        auto A = calc_area(x, y);
+        set_properties(mesh, mesh.add_face(vs[0], vs[1], vs[2]), R, E, A);
+        set_properties(mesh, mesh.add_face(vs[2], vs[3], vs[0]), R, E, A);
     }
 
     void floor(trimesh &mesh)

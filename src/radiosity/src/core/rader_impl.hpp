@@ -35,29 +35,30 @@
 #include "rader.hpp"
 #include "ffengine.hpp"
 #include "ffengine_impl.hpp"
+#include "log.hpp"
 
 namespace boad = boost::adaptors;
 
 namespace
 {
-    const int MAX_STEP = 10;
+    const int MAX_STEP = 10000;
+    const int MAX_RADIO = 10000;
+    const int SUBDIVIDE = 10;
 
     template<class Mesh>
     struct rader_impl
     {
         typedef Mesh mesh_type;
         typedef typename cg::mesh_traits::value_type<mesh_type>::type real_t;
-        typedef typename cg::mesh_traits::color_type<mesh_type>::type color3r;
         typedef typename cg::mesh_traits::patch_handle<mesh_type>::type patch_handle;
         typedef typename cg::patch_handle_traits::index_type<patch_handle>::type patch_index;
         typedef typename std::vector<int> index_container;
-        typedef typename boost::vector_property_map<color3r> patch_color3r_property_map;
+        typedef typename boost::vector_property_map<real_t> patch_real_property_map;
         typedef std::map<patch_index, double> ffmap;
         typedef typename boost::associative_property_map<ffmap> ff_property_map;
 
         mesh_type *mesh;
-        //patch_color3r_property_map radiosity;
-        patch_color3r_property_map rest_radiosity;
+        patch_real_property_map rest_radiosity;
         cg::ffengine<Mesh> ffeng;
 
         /// used to terminate
@@ -79,6 +80,8 @@ namespace
         patch_handle select_shooter();
 
         void calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids);
+
+        void update_max_rest_radiosity();
     };
 }
 
@@ -118,14 +121,11 @@ namespace
     }
 
     /// @todo add area items
-    template<class Color, class Real>
-    inline Color calc_delta_radiosity(Color reflectivity, Color rest_radiosity, Real F)
+    template<class Real>
+    inline Real calc_delta_radiosity(Real reflectivity, Real rest_radiosity, Real F, Real shooter_area, Real reciver_area)
     {
-        return Color(
-            r(reflectivity) * r(rest_radiosity) * F,
-            g(reflectivity) * g(rest_radiosity) * F,
-            b(reflectivity) * b(rest_radiosity) * F
-            );
+        //std::cout << "debug: " << shooter_area << " " << reciver_area << std::endl;
+        return reflectivity * rest_radiosity * F * shooter_area / reciver_area;
     }
 }
 
@@ -142,10 +142,11 @@ void rader_impl<Mesh>::init(Mesh *mesh_)
 
     ffeng.init(mesh);
 
+    max_radiosity = max_rest_radiosity = 0;
     boost::for_each(patches(*mesh), [&](typename patch_handle &p){
-        //put(radiosity, index(p), emission(*mesh, p));
         set_radiosity(*mesh, p, emission(*mesh, p));
         put(rest_radiosity, index(p), emission(*mesh, p));
+        max_radiosity = max_rest_radiosity = std::max(max_radiosity, radiosity(*mesh, p));
     });
 }
 
@@ -154,7 +155,7 @@ void rader_impl<Mesh>::operator ()(Mesh *mesh_)
 {
     // subdivide mesh to small and uniform patches
     // @note perform this before init!
-    subdivide(*mesh_, max_scale(*mesh_) / 10);
+    subdivide(*mesh_, max_scale(*mesh_) / SUBDIVIDE);
 
     init(mesh_);
 
@@ -162,12 +163,14 @@ void rader_impl<Mesh>::operator ()(Mesh *mesh_)
     boost::timer tm;
     while (!terminate())
     {
-        std::cout << "step\t" << step_count + 1 << ":\t";
+        //std::cout << "step\t" << step_count + 1 << "\t" << max_rest_radiosity / max_radiosity << ":\t";
         boost::timer tm;
         step();
-        std::cout << tm.elapsed() << std::endl;
+        //std::cout << tm.elapsed() << std::endl;
         ++step_count;
+        ++bofu::at_key<cg::tags::step_count>(cg::log);
     }
+    bofu::at_key<cg::tags::total_time>(cg::log) += tm.elapsed();
     std::cout << "total:\t" << tm.elapsed() << std::endl;
 }
 
@@ -181,25 +184,44 @@ void rader_impl<Mesh>::step()
     index_container ids;
     calc_form_factors(shooter, _F, ids);
     //BOOST_ASSERT(boost::size(F) == boost::size(ids));
-    boost::for_each(ids, [&](int reciver_id){
-        auto reciver = get_patch(*mesh, reciver_id);
-        BOOST_ASSERT(index(reciver) != -1);
-        auto dr = calc_delta_radiosity(
-            reflectivity(*mesh, reciver),
-            get(rest_radiosity, shooter_id),
-            get(F, reciver_id)
-            );
-        put(rest_radiosity, reciver_id, get(rest_radiosity, reciver_id) + dr);
-        //put(radiosity, reciver_id, get(radiosity, reciver_id) + dr);
-        set_radiosity(*mesh, reciver, radiosity(*mesh, reciver) + dr);
-    });
-    put(rest_radiosity, shooter_id, color3r(0, 0, 0));
+
+    // update patches
+    {
+        boost::timer tm;
+        boost::for_each(ids, [&](int reciver_id){
+            auto reciver = get_patch(*mesh, reciver_id);
+            BOOST_ASSERT(index(reciver) != -1);
+            auto dr = calc_delta_radiosity(
+                reflectivity(*mesh, reciver),
+                get(rest_radiosity, shooter_id),
+                get(F, reciver_id),
+                area(*mesh, shooter),
+                area(*mesh, reciver)
+                );
+            put(rest_radiosity, reciver_id, get(rest_radiosity, reciver_id) + dr);
+            set_radiosity(*mesh, reciver, radiosity(*mesh, reciver) + dr);
+
+            /// @todo maybe use heap?
+            max_radiosity = std::max(max_radiosity, radiosity(*mesh, reciver));
+        });
+        bofu::at_key<cg::tags::update_patch_time>(cg::log) += tm.elapsed();
+    }
+
+    auto old = get(rest_radiosity, shooter_id);
+    put(rest_radiosity, shooter_id, 0);
+    if (old == max_rest_radiosity)
+    {
+        /// @todo tobe optimized
+        update_max_rest_radiosity();
+    }
 }
 
 template<class Mesh>
 void rader_impl<Mesh>::calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids)
 {
+    boost::timer tm;
     ffeng(shooter, F);
+    bofu::at_key<cg::tags::ff_time>(cg::log) += tm.elapsed();
     boost::push_back(ids, boad::keys(F));
 }
 
@@ -215,7 +237,19 @@ typename rader_impl<Mesh>::patch_handle rader_impl<Mesh>::select_shooter()
 template<class Mesh>
 bool rader_impl<Mesh>::terminate()
 {
-    return step_count > MAX_STEP;
+    return step_count > MAX_STEP || max_radiosity > MAX_RADIO * max_rest_radiosity;
+}
+
+template<class Mesh>
+void rader_impl<Mesh>::update_max_rest_radiosity()
+{
+    boost::timer tm;
+    max_rest_radiosity = 0;
+    boost::for_each(patches(*mesh), [&](patch_handle patch)
+    {
+        max_rest_radiosity = std::max(max_rest_radiosity, get(rest_radiosity, index(patch)));
+    });
+    bofu::at_key<cg::tags::update_max_rest_radiosity_time>(cg::log) += tm.elapsed();
 }
 
 #endif // __RADER_IMPL_HPP_20120327214413__

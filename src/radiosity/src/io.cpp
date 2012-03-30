@@ -47,29 +47,29 @@ namespace
             );
     }
 
-    inline real_t peak_channel_value(const clr3 &c)
-    {
-        return std::max(r(c), std::max(g(c), b(c)));
-    }
+    //inline real_t peak_channel_value(const clr3 &c)
+    //{
+    //    return std::max(r(c), std::max(g(c), b(c)));
+    //}
 
-    void normalize_radiosity(trimesh &mesh)
-    {
-        real_t peak = 0;
-        boost::for_each(patches(mesh), [&](op::patch_handle patch)
-        {
-            peak = std::max(peak, peak_channel_value(radiosity(mesh, patch)));
-        });
-        BOOST_ASSERT(peak >= 0);
-        if (peak > 0)
-        {
-            boost::for_each(patches(mesh), [&](op::patch_handle patch)
-            {
-                set_radiosity(mesh, patch, radiosity(mesh, patch) / peak);
-                //auto c = radiosity(mesh, patch);
-                //std::cout << r(c) << ' ' << g(c) << ' ' << b(c) << std::endl;
-            });
-        }
-    }
+    //void normalize_radiosity(trimesh &mesh)
+    //{
+    //    real_t peak = 0;
+    //    boost::for_each(patches(mesh), [&](op::patch_handle patch)
+    //    {
+    //        peak = std::max(peak, peak_channel_value(radiosity(mesh, patch)));
+    //    });
+    //    BOOST_ASSERT(peak >= 0);
+    //    if (peak > 0)
+    //    {
+    //        boost::for_each(patches(mesh), [&](op::patch_handle patch)
+    //        {
+    //            set_radiosity(mesh, patch, radiosity(mesh, patch) / peak);
+    //            //auto c = radiosity(mesh, patch);
+    //            //std::cout << r(c) << ' ' << g(c) << ' ' << b(c) << std::endl;
+    //        });
+    //    }
+    //}
 
     inline real_t gamma(real_t value)
     {

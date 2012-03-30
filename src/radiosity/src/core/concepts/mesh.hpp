@@ -34,15 +34,6 @@ namespace cg { namespace mesh_traits
             typename const_vertex_range<Mesh>::type
         >::type);
 
-    /// color type of Patch
-    ANS_DEFINE_NESTED_TRAITS(Mesh, color_type,
-        typename ans::value_type<
-            decltype(emission(
-                boost::declval<const Mesh&>(),
-                boost::declval<typename patch_handle<Mesh>::type>()
-                ))
-        >::type);
-
     ANS_DEFINE_NESTED_TRAITS(Mesh, patch_range,
         typename ans::value_type<
             decltype(patches(boost::declval<Mesh&>()))
@@ -69,12 +60,10 @@ namespace cg { namespace concepts
     {
         typedef typename mesh_traits::const_vertex_range<T>::type const_vertex_range;
         typedef typename mesh_traits::vertex<T>::type vertex;
-        typedef typename mesh_traits::color_type<T>::type color_type;
         typedef typename mesh_traits::patch_handle<T>::type patch_handle;
         typedef typename mesh_traits::patch_range<T>::type patch_range;
         typedef typename mesh_traits::value_type<T>::type value_type;
 
-        BOOST_CONCEPT_ASSERT((Color3r<color_type>));
         BOOST_CONCEPT_ASSERT((Vector3r<vertex>));
         BOOST_CONCEPT_ASSERT((PatchHandle<patch_handle>));
         BOOST_CONCEPT_ASSERT((boost::SinglePassRangeConcept<patch_range>));
@@ -85,19 +74,20 @@ namespace cg { namespace concepts
             patches(mesh);
             value_type max_size;
             subdivide(mesh, max_size);
-            set_radiosity(mesh, patch, color_type());
+            set_radiosity(mesh, patch, value_type());
 
             const_constraints(mesh);
         }
 
         void const_constraints(const T &mesh)
         {
+            /// all of these should be O(1) operation
             const_vertex_range cvs = vertices(mesh);
-
             const_vertex_range pcvs = vertices(mesh, patch);
-            color_type c = emission(mesh, patch);
-            color_type r = reflectivity(mesh, patch);
-            color_type(radiosity(mesh, patch));
+            value_type(emission(mesh, patch))
+            value_type(reflectivity(mesh, patch));
+            value_type(radiosity(mesh, patch));
+            value_type(area(mesh, patch));
             vertex cen = center(mesh, patch);
             vertex norm = normal(mesh, patch);
             int vc = vertex_count(mesh, patch);

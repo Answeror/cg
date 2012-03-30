@@ -43,6 +43,13 @@ op::property_handles::radiosity_type&
     return ra;
 }
 
+op::property_handles::area_type&
+    op::property_handles::area()
+{
+    static area_type ra;
+    return ra;
+}
+
 void op::subdivide(trimesh &mesh, real_t max_size)
 {
     OpenMesh::Subdivider::Uniform::LongestEdgeT<trimesh, real_t> sd;
@@ -52,6 +59,8 @@ void op::subdivide(trimesh &mesh, real_t max_size)
         mesh.property(property_handles::emission(), to) = mesh.property(property_handles::emission(), from);
         mesh.property(property_handles::reflectivity(), to) = mesh.property(property_handles::reflectivity(), from);
         mesh.property(property_handles::radiosity(), to) = mesh.property(property_handles::radiosity(), from);
+        /// halve area
+        mesh.property(property_handles::area(), to) = (mesh.property(property_handles::area(), from) *= 0.5);
     });
     sd(mesh, 0);
     mesh.update_face_normals();
