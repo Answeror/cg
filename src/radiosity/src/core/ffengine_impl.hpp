@@ -38,11 +38,11 @@
 
 #include "ffengine.hpp"
 #include "log.hpp"
+#include "hemicube.hpp"
+#include "hemicube_impl.hpp"
 
-#ifdef _DEBUG
 #include <iostream>
 #include "ppm.hpp"
-#endif
 
 namespace boad = boost::adaptors;
 
@@ -101,19 +101,14 @@ namespace
 
         void init_coeffs()
         {
-            for (int i = 0; i != EDGE_2; ++i)
-            {
-                for (int j = 0; j != EDGE_2; ++j)
-                {
-                    unsigned tw = -EDGE_1 + i;
-                    unsigned th = -EDGE_1 + j;
-                    unsigned R = EDGE_2;
-                    static const real_t pi = boost::math::constants::pi<real_t>();
-                    real_t cw = std::cos(pi * tw / (real_t)R);
-                    real_t ch = std::cos(pi * th / (real_t)R);
-                    data->coeffs[i][j] = cw * ch;
-                }
-            }
+            cg::hemicube::make_coeffs(
+                boost::make_iterator_range(data->coeffs[0], data->coeffs[0] + EDGE_2 * EDGE_2),
+                EDGE_1
+                );
+#if 0
+            cg::ppm::write(data->coeffs[0], EDGE_2, EDGE_2, "coeffs.ppm");
+            std::cout << "coeffs outputed\n";
+#endif
         }
     };
 
@@ -142,7 +137,7 @@ namespace
         char *argv = "ffengine";
 
         glutInit(&argc, &argv);
-        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+        glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA | GLUT_DEPTH);
         glutInitWindowSize(EDGE_LENGTH, EDGE_LENGTH);
         glutCreateWindow("glcu");
         //glutDisplayFunc(&display);
@@ -287,8 +282,8 @@ void ffengine_method<Mesh>::render_scene(patch_handle dest)
     render_viewport(512, 256, c, atD, vctA);
 
     // render
-    //glFlush();
-    glutSwapBuffers();
+    glFlush();
+    //glutSwapBuffers();
 
     bofu::at_key<cg::tags::render_scene_time>(cg::log) += tm.elapsed();
 }
@@ -327,8 +322,7 @@ void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
     auto area = width * height * 3;
     std::vector<unsigned char> buffer(area);
     glReadPixels(0, 0, width, height, GL_BGR, GL_UNSIGNED_BYTE, buffer.data());
-#ifdef _DEBUG
-    if (false)
+#if 0
     {
         cg::ppm::write(buffer.data(), width, height, "middle.ppm");
         std::cout << "press any key...\n";
@@ -351,11 +345,11 @@ void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
         }
     }
 
-    real_t S = 256.0f*256.0f+4*256.0f*128.0f;
-    boost::for_each(boad::values(ffs), [&](real_t &value)
-    {
-        value /= S;
-    });
+    //real_t S = 256.0f*256.0f+4*256.0f*128.0f;
+    //boost::for_each(boad::values(ffs), [&](real_t &value)
+    //{
+    //    value /= S;
+    //});
 
     bofu::at_key<cg::tags::count_pixel_time>(cg::log) += tm.elapsed();
 }

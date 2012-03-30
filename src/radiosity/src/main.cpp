@@ -11,6 +11,8 @@
 
 #include "core/rader.hpp"
 #include "core/rader_impl.hpp"
+#include "core/ffengine.hpp"
+#include "core/ffengine_impl.hpp"
 #include "adapt/openmesh.hpp"
 #include "io.hpp"
 #include "cornell_box.hpp"
@@ -23,9 +25,12 @@ void output_log();
 int main()
 {
     auto mesh = cg::make_cornell_box();
-    cg::rader(static_cast<op::channels::red::trimesh&>(*mesh));
-    cg::rader(static_cast<op::channels::green::trimesh&>(*mesh));
-    cg::rader(static_cast<op::channels::blue::trimesh&>(*mesh));
+    cg::ffengine<op::trimesh> engine;
+    engine.init(mesh.get());
+    auto nosubdivide = [](op::trimesh&, int){};
+    cg::rader(static_cast<op::channels::red::trimesh&>(*mesh), engine, subdivide);
+    cg::rader(static_cast<op::channels::green::trimesh&>(*mesh), engine, nosubdivide);
+    cg::rader(static_cast<op::channels::blue::trimesh&>(*mesh), engine, nosubdivide);
     cg::output(*mesh, "cornell_box.off");
     output_log();
     return 0;

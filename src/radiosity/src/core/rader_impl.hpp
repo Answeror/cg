@@ -33,19 +33,22 @@
 #include <boost/assert.hpp>
 
 #include "rader.hpp"
-#include "ffengine.hpp"
-#include "ffengine_impl.hpp"
+//#include "ffengine.hpp"
+//#include "ffengine_impl.hpp"
 #include "log.hpp"
 
 namespace boad = boost::adaptors;
 
+#define RADER_IMPL_TPL_HEAD template<class Mesh, class FormFactorEngine, class Subdivide>
+#define RADER_IMPL_TPL rader_impl<Mesh, FormFactorEngine, Subdivide>
+
 namespace
 {
     const int MAX_STEP = 10000;
-    const int MAX_RADIO = 10000;
-    const int SUBDIVIDE = 10;
+    const int MAX_RADIO = 100;
+    const int SUBDIVIDE = 30;
 
-    template<class Mesh>
+    template<class Mesh, class FormFactorEngine, class Subdivide>
     struct rader_impl
     {
         typedef Mesh mesh_type;
@@ -58,8 +61,8 @@ namespace
         typedef typename boost::associative_property_map<ffmap> ff_property_map;
 
         mesh_type *mesh;
+        FormFactorEngine *engine;
         patch_real_property_map rest_radiosity;
-        cg::ffengine<Mesh> ffeng;
 
         /// used to terminate
         int step_count;
@@ -72,10 +75,10 @@ namespace
         /// one step compute
         void step();
 
-        void operator ()(Mesh *mesh);
+        void operator ()(Mesh *mesh, FormFactorEngine *engine, const Subdivide &subdivide);
 
         /// init context
-        void init(Mesh *mesh);
+        void init(Mesh *mesh_, FormFactorEngine *engine_);
 
         patch_handle select_shooter();
 
@@ -129,44 +132,50 @@ namespace
     }
 }
 
-template<class Mesh>
-void cg::rader(Mesh &mesh)
+template<class Mesh, class FormFactorEngine, class Subdivide>
+void cg::rader(
+    Mesh &mesh,
+    FormFactorEngine &engine,
+    const Subdivide &subdivide
+    )
 {
-    rader_impl<Mesh>()(&mesh);
+    RADER_IMPL_TPL()(&mesh, &engine, subdivide);
 }
 
-template<class Mesh>
-void rader_impl<Mesh>::init(Mesh *mesh_)
+RADER_IMPL_TPL_HEAD
+void RADER_IMPL_TPL::init(Mesh *mesh_, FormFactorEngine *engine_)
 {
     mesh = mesh_;
+    engine = engine_;
 
-    ffeng.init(mesh);
+    //engine->init(mesh);
 
     max_radiosity = max_rest_radiosity = 0;
-    boost::for_each(patches(*mesh), [&](typename patch_handle &p){
+    boost::for_each(patches(*mesh), [&](typename patch_handle &p)
+    {
         set_radiosity(*mesh, p, emission(*mesh, p));
         put(rest_radiosity, index(p), emission(*mesh, p));
         max_radiosity = max_rest_radiosity = std::max(max_radiosity, radiosity(*mesh, p));
     });
 }
 
-template<class Mesh>
-void rader_impl<Mesh>::operator ()(Mesh *mesh_)
+RADER_IMPL_TPL_HEAD
+void RADER_IMPL_TPL::operator ()(Mesh *mesh_, FormFactorEngine  *engine_, const Subdivide &subdivide)
 {
     // subdivide mesh to small and uniform patches
     // @note perform this before init!
     subdivide(*mesh_, max_scale(*mesh_) / SUBDIVIDE);
 
-    init(mesh_);
+    init(mesh_, engine_);
 
     step_count = 0;
     boost::timer tm;
     while (!terminate())
     {
-        //std::cout << "step\t" << step_count + 1 << "\t" << max_rest_radiosity / max_radiosity << ":\t";
+        std::cout << "step\t" << step_count + 1 << "\t" << max_rest_radiosity / max_radiosity << ":\t";
         boost::timer tm;
         step();
-        //std::cout << tm.elapsed() << std::endl;
+        std::cout << tm.elapsed() << std::endl;
         ++step_count;
         ++bofu::at_key<cg::tags::step_count>(cg::log);
     }
@@ -174,8 +183,8 @@ void rader_impl<Mesh>::operator ()(Mesh *mesh_)
     std::cout << "total:\t" << tm.elapsed() << std::endl;
 }
 
-template<class Mesh>
-void rader_impl<Mesh>::step()
+RADER_IMPL_TPL_HEAD
+void RADER_IMPL_TPL::step()
 {
     auto shooter = select_shooter();
     auto shooter_id = index(shooter);
@@ -216,17 +225,17 @@ void rader_impl<Mesh>::step()
     }
 }
 
-template<class Mesh>
-void rader_impl<Mesh>::calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids)
+RADER_IMPL_TPL_HEAD
+void RADER_IMPL_TPL::calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids)
 {
     boost::timer tm;
-    ffeng(shooter, F);
+    (*engine)(shooter, F);
     bofu::at_key<cg::tags::ff_time>(cg::log) += tm.elapsed();
     boost::push_back(ids, boad::keys(F));
 }
 
-template<class Mesh>
-typename rader_impl<Mesh>::patch_handle rader_impl<Mesh>::select_shooter()
+RADER_IMPL_TPL_HEAD
+typename RADER_IMPL_TPL::patch_handle RADER_IMPL_TPL::select_shooter()
 {
     return *boost::max_element(patches(*mesh) | boad::memoized, [&](const patch_handle &lhs, const patch_handle &rhs)
     {
@@ -234,14 +243,14 @@ typename rader_impl<Mesh>::patch_handle rader_impl<Mesh>::select_shooter()
     });
 }
 
-template<class Mesh>
-bool rader_impl<Mesh>::terminate()
+RADER_IMPL_TPL_HEAD
+bool RADER_IMPL_TPL::terminate()
 {
     return step_count > MAX_STEP || max_radiosity > MAX_RADIO * max_rest_radiosity;
 }
 
-template<class Mesh>
-void rader_impl<Mesh>::update_max_rest_radiosity()
+RADER_IMPL_TPL_HEAD
+void RADER_IMPL_TPL::update_max_rest_radiosity()
 {
     boost::timer tm;
     max_rest_radiosity = 0;

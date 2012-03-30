@@ -21,6 +21,8 @@ namespace cg
     namespace ppm
     {
         void write(const unsigned char *image, int width, int height, const std::string &path);
+
+        void write(const double *image, int width, int height, const std::string &path);
     }
 }
 

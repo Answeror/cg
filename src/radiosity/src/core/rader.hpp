@@ -20,15 +20,23 @@
 
 namespace cg
 {
+    template<class Mesh>
+    class ffengine;
+
     /**
     *  Do radiosity rendering.
     */
-    template<class Mesh>
-    //BOOST_CONCEPT_REQUIRES(
-    //    ((concepts::Mesh<Mesh>)),
-    //    (void)
-    //    ) rader(Mesh &mesh);
-    void rader(Mesh &mesh);
+    template<class Mesh, class FormFactorEngine, class Subdivide>
+    BOOST_CONCEPT_REQUIRES(
+        ((concepts::Mesh<Mesh>)),
+        (void)
+        )
+        rader(
+        Mesh &mesh,
+        FormFactorEngine &engine,
+        const Subdivide &subdivide
+        );
+    //void rader(Mesh &mesh);
 }
 
 #endif // __RADER_HPP_20120325224938__
