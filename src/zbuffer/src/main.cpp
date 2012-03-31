@@ -8,6 +8,8 @@
  *  
  */
 
+//#include <omp.h>
+
 #include <iostream>
 
 #include <QApplication>
@@ -16,6 +18,13 @@
 
 int main(int argc, char **argv)
 {
+    // Get the number of processors in this system
+    //int iCPU = omp_get_num_procs();
+
+    // Now set the number of threads
+    //omp_set_num_threads(iCPU);
+
+    //std::cout << iCPU << " " << omp_get_thread_num() << std::endl;
     QApplication app(argc, argv);
     cg::mainwindow win;
     win.show();

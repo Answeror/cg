@@ -14,11 +14,14 @@
  *  Scanline z-buffer algorithm implementation.
  */
 
+//#include <ppl.h> // PPL optimize
+
 #include <list>
 #include <vector>
 #include <cmath>
 #include <QDebug>
 
+//#include <boost/thread.hpp>
 #include <boost/timer.hpp>
 #include <boost/range/algorithm/min_element.hpp>
 #include <boost/range/algorithm/max_element.hpp>
@@ -49,6 +52,12 @@
 using cml::x;
 using cml::y;
 using cml::z;
+
+//namespace
+//{
+//    Concurrency::critical_section ecs;
+//    Concurrency::critical_section pcs;
+//}
 
 namespace cg
 {
@@ -231,14 +240,23 @@ namespace cg
             typedef typename data_type<Vertex>::polygon_table polygon_table;
             typedef typename data_type<Vertex>::vertex vertex;
 
-            polygon_table pt;
-            edge_buffer eb;
-            edge_table et;
+            static polygon_table pt;
+            static edge_buffer eb;
+            static edge_table et;
             active_edge_table aet;
 
             /// add one edge to edge table
             void add_edge(polygon *po, const vertex &u, const vertex &v);
         };
+
+        template<class Vertex>
+        typename data<Vertex>::polygon_table data<Vertex>::pt;
+
+        template<class Vertex>
+        typename data<Vertex>::edge_buffer data<Vertex>::eb;
+
+        template<class Vertex>
+        typename data<Vertex>::edge_table data<Vertex>::et;
 
         template<class Vertex>
         void data<Vertex>::add_edge(polygon *po, const vertex &u, const vertex &v)
@@ -267,8 +285,14 @@ namespace cg
             color dc = (c(u) - c(v)) / yspan;
             et[ymax].push_back(new edge(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, cc, dc, u, v, po))));
 #else
-            eb.push_back(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, po, et[ymax])));
-            et[ymax] = &eb.back();
+//#pragma omp critical(add_edge)
+            {
+                //static boost::mutex mu;
+                //boost::lock_guard<boost::mutex> gu(mu);
+                //Concurrency::critical_section::scoped_lock sl(ecs);
+                eb.push_back(ans::make_struct(bofu::make_vector(xx, zz, dx, dy, po, et[ymax])));
+                et[ymax] = &eb.back();
+            }
 #endif
         }
 
@@ -347,9 +371,17 @@ namespace cg
 #endif
                 //boost::timer tm;
                 eb.reserve(3 * size(triangles));
+                eb.clear();
                 pt.reserve(size(triangles));
+                pt.clear();
+                et.clear();
                 et.resize(height(framebuffer), nullptr);
-                for_each(irange<int>(0, size(triangles)), [&](int id){
+                const int n = size(triangles);
+//#pragma omp parallel for
+                for (int id = 0; id < n; ++id)
+                {
+                //for_each(irange<int>(0, size(triangles)), [&](int id){
+                //Concurrency::parallel_for(0, size(triangles), [&](int id){
                     auto &t = triangles[id];
                     auto u = a(t);
                     auto v = b(t);
@@ -367,10 +399,16 @@ namespace cg
                     //auto ymax = iround(std::max(y(_a), std::max(y(_b), y(_c))));
                     //auto ymin = iround(std::min(y(_a), std::min(y(_b), y(_c))));
                     //boost::timer tm;
-                    pt.push_back(ans::make_struct(bofu::as_vector(
-                        bofu::push_back(planf(p(u), p(v), p(w)), nullptr)
-                        )));
-                    auto po = &pt.back();
+                    auto &poly = ans::make_struct(bofu::as_vector(bofu::push_back(planf(p(u), p(v), p(w)), nullptr)));
+                    polygon *po = nullptr;
+//#pragma omp critical(make_polygon)
+                    {
+                        //static boost::mutex mu;
+                        //boost::lock_guard<boost::mutex> gu(mu);
+                        //Concurrency::critical_section::scoped_lock sl(pcs);
+                        pt.push_back(poly);
+                        po = &pt.back();
+                    }
                     //bofu::at_key<tags::planf_time>(log) += tm.elapsed();
                     //qDebug() << po->a << po->b << po->c << po->d;
                     BOOST_ASSERT(std::abs(cml::dot(cmlex::vector3(po->a, po->b, po->c), p(u)) + po->d) < 1e-8);
@@ -381,7 +419,8 @@ namespace cg
                         add_edge(po, v, w);
                         add_edge(po, w, u);
                     }
-                });
+                }
+                //});
                 //qDebug() << "planft:" << tm.elapsed();
 
                 // 这里排序的话会占掉20%的渲染时间

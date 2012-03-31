@@ -92,13 +92,13 @@ namespace cg
          *  Viewport contains render target(frame buffer) and camera.
          */
         template<class Viewport>
-        BOOST_CONCEPT_REQUIRES(
-            ((concepts::Viewport<Viewport>))
-            ((concepts::Camera<typename traits::camera<Viewport>::type>))
-            ((concepts::FrameBuffer<typename traits::frame_buffer<Viewport>::type>)),
-            (void)
-            )
-        render(Viewport &viewport) const;
+        //BOOST_CONCEPT_REQUIRES(
+        //    ((concepts::Viewport<Viewport>)),
+        //    //((concepts::Camera<typename traits::camera<Viewport>::type>))
+        //    //((concepts::FrameBuffer<typename traits::frame_buffer<Viewport>::type>)),
+        //    (void)
+        //    )
+        void render(Viewport &viewport) const;
 
     protected:
         struct data_type;

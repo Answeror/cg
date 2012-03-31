@@ -16,6 +16,8 @@
 
 //#define CG_CUDA_BASED
 
+#include <ppl.h>
+
 #include <QDebug>
 
 #include <algorithm>
@@ -307,7 +309,8 @@ void cg::renderer_method::from_world_to_screen(
     });
     gpu::transform_point_4D(*(gpu::host_matrix44*)m.data(), hvps);
 #else
-    boost::for_each(ps, [&m](vector3 &p){
+    //boost::for_each(ps, [&m](vector3 &p){
+    Concurrency::parallel_for_each(boost::begin(ps), boost::end(ps), [&m](vector3 &p){
         p = cml::transform_point_4D(m, p);
     });
 #endif

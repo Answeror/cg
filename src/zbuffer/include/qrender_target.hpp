@@ -26,6 +26,7 @@ namespace cg
     {
     public:
         typedef qrender_target this_type;
+        typedef color color_type;
 
     public:
         qrender_target(QImage &data) : data(data) {}

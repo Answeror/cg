@@ -25,9 +25,10 @@ namespace cg
         template<class FrameBuffer>
         struct color
         {
-            typedef typename ans::value_type<
-                decltype(get(boost::declval<FrameBuffer>(), 0, 0))
-            >::type type;
+            //typedef typename ans::value_type<
+            //    decltype(get(boost::declval<FrameBuffer>(), 0, 0))
+            //>::type type;
+            typedef typename FrameBuffer::color_type type;
         };
     }
 }
@@ -40,7 +41,7 @@ namespace cg
         BOOST_concept(FrameBuffer, (B))
         {
         public:
-            typedef typename traits::color<FrameBuffer>::type color;
+            typedef typename traits::color<B>::type color;
 
             BOOST_CONCEPT_USAGE(FrameBuffer)
             {

@@ -1,3 +1,9 @@
 #add_subdirectory(ggl)
-#add_subdirectory(zbuffer)
-add_subdirectory(radiosity)
+
+if(CG_BUILD_ZBUFFER)
+    add_subdirectory(zbuffer)
+endif()
+
+if(CG_BUILD_RADIOSITY)
+    add_subdirectory(radiosity)
+endif()
