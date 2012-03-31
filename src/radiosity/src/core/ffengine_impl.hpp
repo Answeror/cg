@@ -40,6 +40,8 @@
 #include "log.hpp"
 #include "hemicube.hpp"
 #include "hemicube_impl.hpp"
+#include "ffvec.hpp"
+#include "ffvec_impl.hpp"
 
 #include <iostream>
 #include "ppm.hpp"
@@ -56,14 +58,19 @@ namespace
 template<class Mesh>
 struct cg::ffengine<Mesh>::data_type
 {
+    typedef typename cg::mesh_traits::value_type<Mesh>::type real_t;
+
     mesh_type *mesh;
     bool inited;
+    bool coeffs_inited;
     real_t coeffs[EDGE_2][EDGE_2];
     boost::optional<GLuint> display_list_id;
+    ffvec<real_t> ffs;
 
     data_type() :
         mesh(nullptr),
-        inited(false)
+        inited(false),
+        coeffs_inited(false)
     {}
 };
 
@@ -92,7 +99,8 @@ namespace
         */
         void render_scene(patch_handle dest);
 
-        void calc_ff(ffcontainer &ffs);
+        //void calc_ff(ffcontainer &ffs);
+        void calc_ff();
 
         /**
          *  Draw triangles.
@@ -101,14 +109,18 @@ namespace
 
         void init_coeffs()
         {
-            cg::hemicube::make_coeffs(
-                boost::make_iterator_range(data->coeffs[0], data->coeffs[0] + EDGE_2 * EDGE_2),
-                EDGE_1
-                );
+            if (!data->coeffs_inited)
+            {
+                cg::hemicube::make_coeffs(
+                    boost::make_iterator_range(data->coeffs[0], data->coeffs[0] + EDGE_2 * EDGE_2),
+                    EDGE_1
+                    );
+                data->coeffs_inited = true;
 #if 0
-            cg::ppm::write(data->coeffs[0], EDGE_2, EDGE_2, "coeffs.ppm");
-            std::cout << "coeffs outputed\n";
+                cg::ppm::write(data->coeffs[0], EDGE_2, EDGE_2, "coeffs.ppm");
+                std::cout << "coeffs outputed\n";
 #endif
+            }
         }
     };
 
@@ -198,15 +210,31 @@ void cg::ffengine<Mesh>::init(mesh_type *mesh)
     data->mesh = mesh;
     init_gl();
     method(this)->init_coeffs();
+    data->ffs.resize(patch_count(*mesh));
     data->inited = true;
 }
 
 template<class Mesh>
-void cg::ffengine<Mesh>::operator ()(patch_handle shooter, ffcontainer &ffs)
+struct cg::ffengine<Mesh>::ffinfo_range :
+    cg::ffvec<typename cg::mesh_traits::value_type<Mesh>::type>::ffinfo_range
+{};
+
+//template<class Mesh>
+//void cg::ffengine<Mesh>::operator ()(patch_handle shooter, ffcontainer &ffs)
+//{
+//    BOOST_ASSERT(data->inited);
+//    method(this)->render_scene(shooter);
+//    method(this)->calc_ff(ffs);
+//}
+
+template<class Mesh>
+typename cg::ffengine<Mesh>::ffinfo_range
+    cg::ffengine<Mesh>::operator ()(patch_handle shooter)
 {
     BOOST_ASSERT(data->inited);
     method(this)->render_scene(shooter);
-    method(this)->calc_ff(ffs);
+    method(this)->calc_ff();
+    return static_cast<const ffinfo_range&>(data->ffs.get());
 }
 
 template<class Mesh>
@@ -312,8 +340,54 @@ namespace
     }
 }
 
+//template<class Mesh>
+//void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
+//{
+//    boost::timer tm;
+//
+//    GLsizei width = EDGE_LENGTH;
+//    GLsizei height = EDGE_LENGTH;
+//    auto area = width * height * 3;
+//    std::vector<unsigned char> buffer(area);
+//    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+//#if 0
+//    {
+//        cg::ppm::write(buffer.data(), width, height, "middle.ppm");
+//        std::cout << "press any key...\n";
+//        std::getchar();
+//    }
+//#endif
+//    for (int y = 128; y != (128 + 512); ++y)
+//    {
+//        for (int x = 128; x != (128 + 512); ++x)
+//        {
+//            auto p = buffer.data() + 3 * (y * height + x);
+//            auto r = p[0];
+//            auto g = p[1];
+//            auto b = p[2];
+//            auto color = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
+//            if (color < patch_count(*data->mesh))
+//            {
+//                ffs[color] += data->coeffs[x - 128][y - 128];
+//            }
+//            else
+//            {
+//                BOOST_ASSERT(color == 0xffffff);
+//            }
+//        }
+//    }
+//
+//    //real_t S = 256.0f*256.0f+4*256.0f*128.0f;
+//    //boost::for_each(boad::values(ffs), [&](real_t &value)
+//    //{
+//    //    value /= S;
+//    //});
+//
+//    bofu::at_key<cg::tags::count_pixel_time>(cg::log) += tm.elapsed();
+//}
+
 template<class Mesh>
-void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
+void ffengine_method<Mesh>::calc_ff()
 {
     boost::timer tm;
 
@@ -329,25 +403,36 @@ void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
         std::getchar();
     }
 #endif
-    for (int y = 128; y != (128 + 512); ++y)
+    data->ffs.update([&](cg::ffvec<real_t>::updater &up)
     {
-        for (int x = 128; x != (128 + 512); ++x)
+        for (int y = 128; y != (128 + 512); ++y)
         {
-            auto p = buffer.data() + 3 * (y * height + x);
-            auto r = p[0];
-            auto g = p[1];
-            auto b = p[2];
-            auto color = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
-            if (color < patch_count(*data->mesh))
+            for (int x = 128; x != (128 + 512); ++x)
             {
-                ffs[color] += data->coeffs[x - 128][y - 128];
-            }
-            else
-            {
-                BOOST_ASSERT(color == 0xffffff);
+                auto p = buffer.data() + 3 * (y * height + x);
+                auto r = p[0];
+                auto g = p[1];
+                auto b = p[2];
+                auto id = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
+                if (id < patch_count(*data->mesh))
+                {
+                    //ffs[color] += data->coeffs[x - 128][y - 128];
+                    if (up.valid(id))
+                    {
+                        up.inc(id, data->coeffs[x - 128][y - 128]);
+                    }
+                    else
+                    {
+                        up.set(id, data->coeffs[x - 128][y - 128]);
+                    }
+                }
+                else
+                {
+                    BOOST_ASSERT(id == 0xffffff);
+                }
             }
         }
-    }
+    });
 
     //real_t S = 256.0f*256.0f+4*256.0f*128.0f;
     //boost::for_each(boad::values(ffs), [&](real_t &value)

@@ -8,6 +8,8 @@
  *  
  */
 
+//#include <string>
+#include <iostream>
 
 #include "core/rader.hpp"
 #include "core/rader_impl.hpp"
@@ -24,15 +26,28 @@ void output_log();
 
 int main()
 {
-    auto mesh = cg::make_cornell_box();
-    cg::ffengine<op::trimesh> engine;
-    engine.init(mesh.get());
-    auto nosubdivide = [](op::trimesh&, int){};
-    cg::rader(static_cast<op::channels::red::trimesh&>(*mesh), engine, subdivide);
-    cg::rader(static_cast<op::channels::green::trimesh&>(*mesh), engine, nosubdivide);
-    cg::rader(static_cast<op::channels::blue::trimesh&>(*mesh), engine, nosubdivide);
-    cg::output(*mesh, "cornell_box.off");
-    output_log();
+    double exposure;
+    if (std::cin >> exposure)
+    {
+        op::trimesh mesh;
+        op::init(mesh);
+        cg::io::read(mesh, "cornell_box.om");
+        cg::io::expose(mesh, exposure);
+        cg::io::interpolate_vertex_color(mesh);
+        cg::output(mesh, "cornell_box.exposed.off");
+    }
+    else
+    {
+        auto mesh = cg::make_cornell_box();
+        cg::ffengine<op::trimesh> engine;
+        //engine.init(mesh.get());
+        auto nosubdivide = [](op::trimesh&, double){};
+        cg::rader(static_cast<op::channels::red::trimesh&>(*mesh), engine, subdivide);
+        cg::rader(static_cast<op::channels::green::trimesh&>(*mesh), engine, nosubdivide);
+        cg::rader(static_cast<op::channels::blue::trimesh&>(*mesh), engine, nosubdivide);
+        cg::output(*mesh, "cornell_box.om");
+        output_log();
+    }
     return 0;
 }
 

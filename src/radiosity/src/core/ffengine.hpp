@@ -17,6 +17,7 @@
 #include <map>
 
 #include <boost/concept/requires.hpp>
+#include <boost/noncopyable.hpp>
 
 #include <ans/alpha/pimpl.hpp>
 
@@ -26,7 +27,7 @@
 namespace cg
 {
     template<class Mesh>
-    class ffengine
+    class ffengine : boost::noncopyable
     {
     protected:
         typedef Mesh mesh_type;
@@ -35,6 +36,8 @@ namespace cg
         typedef typename mesh_traits::patch_handle<Mesh>::type patch_handle;
         typedef typename patch_handle_traits::index_type<patch_handle>::type patch_index;
         typedef std::map<patch_index, real_t> ffcontainer;
+
+        struct ffinfo_range;
 
     public:
         ffengine();
@@ -46,6 +49,8 @@ namespace cg
 
         /// calculate form factors from shooter
         void operator ()(patch_handle shooter, ffcontainer &ffs);
+
+        ffinfo_range operator ()(patch_handle shooter);
 
     protected:
         struct data_type;

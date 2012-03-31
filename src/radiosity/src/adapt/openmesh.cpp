@@ -15,6 +15,8 @@
 #include <boost/assert.hpp>
 
 //#include <OpenMesh/Tools/Subdivider/Uniform/LongestEdgeT.hh>
+#include <OpenMesh/Core/IO/MeshIO.hh>
+
 #include "core/sd.hpp"
 
 #include "openmesh.hpp"
@@ -48,6 +50,24 @@ op::property_handles::area_type&
 {
     static area_type ra;
     return ra;
+}
+
+namespace
+{
+    void enable_properties(op::trimesh &mesh)
+    {
+        mesh.request_face_normals();
+        mesh.add_property(op::property_handles::emission());
+        mesh.add_property(op::property_handles::reflectivity());
+        mesh.add_property(op::property_handles::radiosity(), "radiosity");
+        mesh.property(op::property_handles::radiosity()).set_persistent(true);
+        mesh.add_property(op::property_handles::area());
+    }
+}
+
+void op::init(trimesh &mesh)
+{
+    enable_properties(mesh);
 }
 
 void op::subdivide(trimesh &mesh, real_t max_size)

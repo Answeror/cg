@@ -10,6 +10,8 @@
 
 #include <boost/make_shared.hpp>
 
+#include <OpenMesh/Core/IO/MeshIO.hh>
+
 #include "cornell_box.hpp"
 
 namespace op = cg::openmesh;
@@ -24,15 +26,6 @@ namespace
     const real_t L = 555;
     const clr3 DEFAULT_R = clr3().vectorize(0.75);
     const clr3 DEFAULT_E = clr3().vectorize(0);
-
-    void enable_properties(trimesh &mesh)
-    {
-        mesh.request_face_normals();
-        mesh.add_property(op::property_handles::emission());
-        mesh.add_property(op::property_handles::reflectivity());
-        mesh.add_property(op::property_handles::radiosity());
-        mesh.add_property(op::property_handles::area());
-    }
 
     void set_properties(trimesh &mesh, op::patch_handle patch, const clr3 &R, const clr3 &E, real_t A)
     {
@@ -96,7 +89,7 @@ namespace
     void lamp(trimesh &mesh)
     {
         quad(mesh, vec3(213, 550, 227), vec3(130, 0, 0), vec3(0, 0, 105),
-            DEFAULT_R, clr3(8670, 4801, 1024));
+            DEFAULT_R, clr3(1, 1, 1));
             //DEFAULT_R, /*8400000.0 * */clr3(1, 1, 1));
     }
 
@@ -124,7 +117,7 @@ boost::shared_ptr<trimesh> cg::make_cornell_box()
     auto p = boost::make_shared<trimesh>();
     {
         auto &mesh = *p;
-        enable_properties(mesh);
+        init(mesh);
         floor(mesh);
         ceiling(mesh);
         back_wall(mesh);

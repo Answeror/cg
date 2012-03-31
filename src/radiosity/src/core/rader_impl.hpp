@@ -46,8 +46,8 @@ namespace boad = boost::adaptors;
 namespace
 {
     const int MAX_STEP = 10000;
-    const int MAX_RADIO = 100;
-    const int SUBDIVIDE = 10;
+    const double MAX_RADIO = 100;
+    const double SUBDIVIDE = 10;
 
     template<class Mesh, class FormFactorEngine, class Subdivide>
     struct rader_impl
@@ -83,7 +83,7 @@ namespace
 
         patch_handle select_shooter();
 
-        void calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids);
+        //void calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids);
 
         void update_max_rest_radiosity();
 
@@ -159,7 +159,7 @@ void RADER_IMPL_TPL::init(Mesh *mesh_, FormFactorEngine *engine_)
     mesh = mesh_;
     engine = engine_;
 
-    //engine->init(mesh);
+    engine->init(mesh);
 
     max_radiosity = max_rest_radiosity = 0;
     boost::for_each(patches(*mesh), [&](typename patch_handle &p)
@@ -199,23 +199,27 @@ void RADER_IMPL_TPL::step()
 {
     auto shooter = select_shooter();
     auto shooter_id = index(shooter);
-    ffmap _F;
-    ff_property_map F(_F);
-    index_container ids;
-    calc_form_factors(shooter, _F, ids);
-    std::cout << "ff:" << boost::accumulate(boad::values(_F), 0.0) << std::endl;
+    //ffmap _F;
+    //ff_property_map F(_F);
+    //index_container ids;
+    //calc_form_factors(shooter, _F, ids);
+    //std::cout << "ff:" << boost::accumulate(boad::values(_F), 0.0) << std::endl;
     //BOOST_ASSERT(boost::size(F) == boost::size(ids));
 
     // update patches
     {
         boost::timer tm;
-        boost::for_each(ids, [&](int reciver_id){
+        for each (auto info in (*engine)(shooter))
+        {
+        //boost::for_each(ids, [&](int reciver_id){
+            auto reciver_id = id(info);
             auto reciver = get_patch(*mesh, reciver_id);
             BOOST_ASSERT(index(reciver) != -1);
             auto dr = calc_delta_radiosity(
                 reflectivity(*mesh, reciver),
                 get(rest_radiosity, shooter_id),
-                get(F, reciver_id),
+                //get(F, reciver_id),
+                value(info),
                 area(*mesh, shooter),
                 area(*mesh, reciver)
                 );
@@ -230,7 +234,8 @@ void RADER_IMPL_TPL::step()
 
             /// @todo maybe use heap?
             max_radiosity = std::max(max_radiosity, radiosity(*mesh, reciver));
-        });
+        //});
+        }
         bofu::at_key<cg::tags::update_patch_time>(cg::log) += tm.elapsed();
     }
 
@@ -244,14 +249,14 @@ void RADER_IMPL_TPL::step()
     //}
 }
 
-RADER_IMPL_TPL_HEAD
-void RADER_IMPL_TPL::calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids)
-{
-    boost::timer tm;
-    (*engine)(shooter, F);
-    bofu::at_key<cg::tags::ff_time>(cg::log) += tm.elapsed();
-    boost::push_back(ids, boad::keys(F));
-}
+//RADER_IMPL_TPL_HEAD
+//void RADER_IMPL_TPL::calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids)
+//{
+//    boost::timer tm;
+//    (*engine)(shooter, F);
+//    bofu::at_key<cg::tags::ff_time>(cg::log) += tm.elapsed();
+//    boost::push_back(ids, boad::keys(F));
+//}
 
 RADER_IMPL_TPL_HEAD
 typename RADER_IMPL_TPL::patch_handle RADER_IMPL_TPL::select_shooter()

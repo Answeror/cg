@@ -32,6 +32,7 @@ namespace cg { namespace openmesh
     {
         typedef OpenMesh::Vec3d Point;
         typedef OpenMesh::Vec3d Normal;
+        typedef OpenMesh::Vec3d Color;
     };
     typedef OpenMesh::TriMesh_ArrayKernelT<data_traits> trimesh;
     typedef int patch_index;
@@ -74,6 +75,8 @@ struct cg::mesh_traits::value_type<cg::openmesh::trimesh>
 
 namespace cg { namespace openmesh
 {
+    void init(trimesh &mesh);
+
     inline real_t length(const vector3r &v) { return v.length(); }
 
     inline int index(patch_handle h) { return h.idx(); }
@@ -234,6 +237,7 @@ struct cg::mesh_traits::value_type<cg::openmesh::channels::blue::trimesh>
 
 namespace
 {
+    using cg::openmesh::init;
     using cg::openmesh::length;
     using cg::openmesh::index;
     using cg::openmesh::subdivide;

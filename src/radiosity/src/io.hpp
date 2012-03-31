@@ -27,6 +27,15 @@ namespace cg
      *  Color channel value range from 0 to 255.
      */
     void output(openmesh::trimesh &mesh, const std::string &path);
+
+    namespace io
+    {
+        void read(openmesh::trimesh &mesh, const std::string &path);
+
+        void expose(openmesh::trimesh &mesh, cg::mesh_traits::value_type<openmesh::trimesh>::type exposure);
+
+        void interpolate_vertex_color(openmesh::trimesh &mesh);
+    }
 }
 
 #endif // __IO_HPP_20120329152228__

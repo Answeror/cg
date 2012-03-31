@@ -17,6 +17,7 @@
 #include <boost/format.hpp>
 #include <boost/range/algorithm/for_each.hpp>
 #include <boost/assert.hpp>
+#include <boost/range/adaptor/outdirected.hpp>
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 
@@ -24,6 +25,7 @@
 
 #include "io.hpp"
 
+namespace boad = boost::adaptors;
 namespace op = cg::openmesh;
 
 using op::trimesh;
@@ -74,7 +76,7 @@ namespace
     inline real_t expose(real_t light, real_t exposure)
     {
         //return std::min( int(std::pow(value ,1/2.2)), 255 );
-        return (1 - std::exp(-light * exposure));
+        return (1 - std::exp(-light * exposure)) * 255;
     }
 
     inline clr3 expose(const clr3 &c, real_t exposure)
@@ -85,21 +87,44 @@ namespace
     void set_color(trimesh &mesh)
     {
         //normalize_radiosity(mesh);
-        mesh.request_face_colors();
-        boost::for_each(patches(mesh), [&](op::patch_handle patch)
-        {
-            mesh.set_color(patch, cast_color(expose(radiosity(mesh, patch), 0.2)));
-        });
+        //mesh.request_face_colors();
+        //mesh.request_vertex_colors();
+        //mesh.property(op::property_handles::radiosity()).set_persistent(true);
+        //boost::for_each(boost::make_iterator_range(mesh.vertices_begin(), mesh.vertices_end()) | boad::outdirected,
+        //    [&](trimesh::VertexIter vi)
+        //    {
+        //        auto &mesh_ = mesh;
+        //        clr3 c(0, 0, 0);
+        //        boost::for_each(boost::make_iterator_range(mesh.vf_begin(vi.handle()), mesh.vf_end(vi.handle())) | boad::outdirected,
+        //            [&](trimesh::VertexFaceIter vfi)
+        //            {
+        //                c += radiosity(mesh_, vfi.handle());
+        //            }
+        //        );
+        //        mesh.set_color(vi.handle(), c / mesh.valence(vi.handle()));
+        //    }
+        //);
+        //boost::for_each(patches(mesh), [&](op::patch_handle patch)
+        //{
+        //    mesh.set_color(patch, cast_color(expose(radiosity(mesh, patch), 0.2)));
+        //});
     }
 }
 
 void cg::output(trimesh &mesh, const std::string &path)
 {
-    set_color(mesh);
+    //set_color(mesh);
     try
     {
-        OpenMesh::IO::Options opt;
-        opt += OpenMesh::IO::Options::FaceColor;
+        OpenMesh::IO::Options opt = OpenMesh::IO::Options::Default;
+        if (mesh.has_face_colors())
+        {
+            opt += OpenMesh::IO::Options::FaceColor;
+        }
+        if (mesh.has_vertex_colors())
+        {
+            opt += OpenMesh::IO::Options::VertexColor;
+        }
         if (!OpenMesh::IO::write_mesh(mesh, path, opt))
         {
             std::cerr << (boost::format("Cannot write mesh to file '%s'\n") % path);
@@ -109,4 +134,48 @@ void cg::output(trimesh &mesh, const std::string &path)
     {
         std::cerr << boost::current_exception_diagnostic_information();
     }
+}
+
+void cg::io::read(openmesh::trimesh &mesh, const std::string &path)
+{
+    try
+    {
+        if (!OpenMesh::IO::read_mesh(mesh, path))
+        {
+            std::cerr << (boost::format("Cannot read mesh file '%s'\n") % path);
+        }
+    }
+    catch(...)
+    {
+        std::cerr << boost::current_exception_diagnostic_information();
+    }
+}
+
+void cg::io::expose(openmesh::trimesh &mesh, cg::mesh_traits::value_type<openmesh::trimesh>::type exposure)
+{
+    mesh.request_face_colors();
+    boost::for_each(patches(mesh), [&](op::patch_handle patch)
+    {
+        mesh.set_color(patch, ::expose(radiosity(mesh, patch), exposure));
+    });
+}
+
+void cg::io::interpolate_vertex_color(openmesh::trimesh &mesh)
+{
+    BOOST_ASSERT(mesh.has_face_colors());
+    mesh.request_vertex_colors();
+    boost::for_each(boost::make_iterator_range(mesh.vertices_begin(), mesh.vertices_end()) | boad::outdirected,
+        [&](trimesh::VertexIter vi)
+        {
+            auto &mesh_ = mesh;
+            clr3 c(0, 0, 0);
+            boost::for_each(boost::make_iterator_range(mesh.vf_begin(vi.handle()), mesh.vf_end(vi.handle())) | boad::outdirected,
+                [&](trimesh::VertexFaceIter vfi)
+                {
+                    c += mesh_.color(vfi.handle());
+                }
+            );
+            mesh.set_color(vi.handle(), c / mesh.valence(vi.handle()));
+        }
+    );
 }
