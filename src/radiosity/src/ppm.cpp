@@ -22,11 +22,12 @@ void cg::ppm::write(const unsigned char *image, int width, int height, const std
     {
         for (int x = 0; x != width; ++x)
         {
-            const unsigned char *c = image + y * width + x;
+            const unsigned char *c = image + 3 * (y * width + x);
             for (int i = 0; i != 3; ++i)
             {
                 ofs << int(c[i]) << ' ';
             }
+            ofs << '\n';
         }
     }
 }

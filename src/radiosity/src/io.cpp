@@ -47,38 +47,39 @@ namespace
             );
     }
 
-    //inline real_t peak_channel_value(const clr3 &c)
-    //{
-    //    return std::max(r(c), std::max(g(c), b(c)));
-    //}
-
-    //void normalize_radiosity(trimesh &mesh)
-    //{
-    //    real_t peak = 0;
-    //    boost::for_each(patches(mesh), [&](op::patch_handle patch)
-    //    {
-    //        peak = std::max(peak, peak_channel_value(radiosity(mesh, patch)));
-    //    });
-    //    BOOST_ASSERT(peak >= 0);
-    //    if (peak > 0)
-    //    {
-    //        boost::for_each(patches(mesh), [&](op::patch_handle patch)
-    //        {
-    //            set_radiosity(mesh, patch, radiosity(mesh, patch) / peak);
-    //            //auto c = radiosity(mesh, patch);
-    //            //std::cout << r(c) << ' ' << g(c) << ' ' << b(c) << std::endl;
-    //        });
-    //    }
-    //}
-
-    inline real_t gamma(real_t value)
+    inline real_t peak_channel_value(const clr3 &c)
     {
-        return std::min( int(std::pow(value ,1/2.2)), 255 );
+        return std::max(r(c), std::max(g(c), b(c)));
     }
 
-    inline clr3 gamma(const clr3 &c)
+    void normalize_radiosity(trimesh &mesh)
     {
-        return clr3(gamma(r(c)), gamma(g(c)), gamma(b(c)));
+        real_t peak = 0;
+        boost::for_each(patches(mesh), [&](op::patch_handle patch)
+        {
+            peak = std::max(peak, peak_channel_value(radiosity(mesh, patch)));
+        });
+        BOOST_ASSERT(peak >= 0);
+        if (peak > 0)
+        {
+            boost::for_each(patches(mesh), [&](op::patch_handle patch)
+            {
+                set_radiosity(mesh, patch, radiosity(mesh, patch) / peak);
+                //auto c = radiosity(mesh, patch);
+                //std::cout << r(c) << ' ' << g(c) << ' ' << b(c) << std::endl;
+            });
+        }
+    }
+
+    inline real_t expose(real_t light, real_t exposure)
+    {
+        //return std::min( int(std::pow(value ,1/2.2)), 255 );
+        return (1 - std::exp(-light * exposure));
+    }
+
+    inline clr3 expose(const clr3 &c, real_t exposure)
+    {
+        return clr3(expose(r(c), exposure), expose(g(c), exposure), expose(b(c), exposure));
     }
 
     void set_color(trimesh &mesh)
@@ -87,7 +88,7 @@ namespace
         mesh.request_face_colors();
         boost::for_each(patches(mesh), [&](op::patch_handle patch)
         {
-            mesh.set_color(patch, cast_color(gamma(radiosity(mesh, patch)) / 255));
+            mesh.set_color(patch, cast_color(expose(radiosity(mesh, patch), 0.2)));
         });
     }
 }

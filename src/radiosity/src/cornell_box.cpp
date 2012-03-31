@@ -96,7 +96,8 @@ namespace
     void lamp(trimesh &mesh)
     {
         quad(mesh, vec3(213, 550, 227), vec3(130, 0, 0), vec3(0, 0, 105),
-            DEFAULT_R, 8400000.0 * clr3(1, 1, 1));
+            DEFAULT_R, clr3(8670, 4801, 1024));
+            //DEFAULT_R, /*8400000.0 * */clr3(1, 1, 1));
     }
 
     void tall_block(trimesh &mesh)

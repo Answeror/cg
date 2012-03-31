@@ -137,7 +137,7 @@ namespace
         char *argv = "ffengine";
 
         glutInit(&argc, &argv);
-        glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA | GLUT_DEPTH);
+        glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
         glutInitWindowSize(EDGE_LENGTH, EDGE_LENGTH);
         glutCreateWindow("glcu");
         //glutDisplayFunc(&display);
@@ -321,7 +321,7 @@ void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
     GLsizei height = EDGE_LENGTH;
     auto area = width * height * 3;
     std::vector<unsigned char> buffer(area);
-    glReadPixels(0, 0, width, height, GL_BGR, GL_UNSIGNED_BYTE, buffer.data());
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
 #if 0
     {
         cg::ppm::write(buffer.data(), width, height, "middle.ppm");
@@ -329,18 +329,22 @@ void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
         std::getchar();
     }
 #endif
-    for (int x = 128; x != (128 + 512); ++x)
+    for (int y = 128; y != (128 + 512); ++y)
     {
-        for (int y = 128; y != (128 + 512); ++y)
+        for (int x = 128; x != (128 + 512); ++x)
         {
-            auto p = buffer.data() + 3 * (x * height + y);
-            auto b = p[0];
+            auto p = buffer.data() + 3 * (y * height + x);
+            auto r = p[0];
             auto g = p[1];
-            auto r = p[2];
+            auto b = p[2];
             auto color = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
             if (color < patch_count(*data->mesh))
             {
                 ffs[color] += data->coeffs[x - 128][y - 128];
+            }
+            else
+            {
+                BOOST_ASSERT(color == 0xffffff);
             }
         }
     }
@@ -357,11 +361,7 @@ void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
 template<class Mesh>
 void ffengine_method<Mesh>::draw()
 {
-    if (data->display_list_id)
-    {
-        glCallList(*data->display_list_id);
-    }
-    else
+    if (!data->display_list_id)
     {
         data->display_list_id = glGenLists(1);
         glNewList(*data->display_list_id, GL_COMPILE);
@@ -380,6 +380,7 @@ void ffengine_method<Mesh>::draw()
         bofu::at_key<cg::tags::draw_time>(cg::log) += tm.elapsed();
         glEndList();
     }
+    glCallList(*data->display_list_id);
 }
 
 #endif // __FFENGINE_IMPL_HPP_20120328144810__

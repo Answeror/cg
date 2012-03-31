@@ -27,10 +27,11 @@ namespace cg
     *  Do radiosity rendering.
     */
     template<class Mesh, class FormFactorEngine, class Subdivide>
-    BOOST_CONCEPT_REQUIRES(
-        ((concepts::Mesh<Mesh>)),
-        (void)
-        )
+    //BOOST_CONCEPT_REQUIRES(
+    //    ((concepts::Mesh<Mesh>)),
+    //    (void)
+    //    )
+    void
         rader(
         Mesh &mesh,
         FormFactorEngine &engine,

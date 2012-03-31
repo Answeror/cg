@@ -31,6 +31,7 @@
 #include <boost/range/adaptor/memoized.hpp>
 #include <boost/range/irange.hpp>
 #include <boost/assert.hpp>
+#include <boost/range/numeric.hpp>
 
 #include "rader.hpp"
 //#include "ffengine.hpp"
@@ -46,7 +47,7 @@ namespace
 {
     const int MAX_STEP = 10000;
     const int MAX_RADIO = 100;
-    const int SUBDIVIDE = 30;
+    const int SUBDIVIDE = 10;
 
     template<class Mesh, class FormFactorEngine, class Subdivide>
     struct rader_impl
@@ -85,6 +86,9 @@ namespace
         void calc_form_factors(patch_handle shooter, ffmap &F, index_container &ids);
 
         void update_max_rest_radiosity();
+
+        void combine_shooter(patch_handle shooter)
+        {}
     };
 }
 
@@ -127,6 +131,13 @@ namespace
     template<class Real>
     inline Real calc_delta_radiosity(Real reflectivity, Real rest_radiosity, Real F, Real shooter_area, Real reciver_area)
     {
+        BOOST_ASSERT(
+            reflectivity >= 0 &&
+            rest_radiosity >= 0 &&
+            F >= 0 &&
+            shooter_area >= 0 &&
+            reciver_area >= 0
+            );
         //std::cout << "debug: " << shooter_area << " " << reciver_area << std::endl;
         return reflectivity * rest_radiosity * F * shooter_area / reciver_area;
     }
@@ -192,6 +203,7 @@ void RADER_IMPL_TPL::step()
     ff_property_map F(_F);
     index_container ids;
     calc_form_factors(shooter, _F, ids);
+    std::cout << "ff:" << boost::accumulate(boad::values(_F), 0.0) << std::endl;
     //BOOST_ASSERT(boost::size(F) == boost::size(ids));
 
     // update patches
@@ -207,7 +219,13 @@ void RADER_IMPL_TPL::step()
                 area(*mesh, shooter),
                 area(*mesh, reciver)
                 );
-            put(rest_radiosity, reciver_id, get(rest_radiosity, reciver_id) + dr);
+
+            /// @optimization only update non shooted patch
+            if (get(rest_radiosity, reciver_id) >= 0)
+            {
+                put(rest_radiosity, reciver_id, get(rest_radiosity, reciver_id) + dr);
+            }
+
             set_radiosity(*mesh, reciver, radiosity(*mesh, reciver) + dr);
 
             /// @todo maybe use heap?
@@ -217,12 +235,13 @@ void RADER_IMPL_TPL::step()
     }
 
     auto old = get(rest_radiosity, shooter_id);
-    put(rest_radiosity, shooter_id, 0);
-    if (old == max_rest_radiosity)
-    {
+    /// @optimization use -1 to mark shooted patch, never shoot again
+    put(rest_radiosity, shooter_id, -1);
+    //if (old <= max_rest_radiosity)
+    //{
         /// @todo tobe optimized
         update_max_rest_radiosity();
-    }
+    //}
 }
 
 RADER_IMPL_TPL_HEAD

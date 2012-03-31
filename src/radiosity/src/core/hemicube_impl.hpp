@@ -41,7 +41,9 @@ void cg::hemicube::make_coeffs(RowMajorRealRange coeffs, int front_face_edge_len
 
     BOOST_ASSERT(front_face_edge_length % 2 == 0);
     const int half = front_face_edge_length / 2;
+    const int EDGE_1 = front_face_edge_length;
     const int EDGE_2 = 2 * front_face_edge_length;
+    const real_t area = EDGE_1 * EDGE_1;
     BOOST_ASSERT(boost::size(coeffs) == EDGE_2 * EDGE_2);
     auto now = boost::begin(coeffs);
     real_t sum = 0;
@@ -55,13 +57,18 @@ void cg::hemicube::make_coeffs(RowMajorRealRange coeffs, int front_face_edge_len
             }
             else
             {
-                const unsigned tw = -EDGE_1 + i;
-                const unsigned th = -EDGE_1 + j;
-                const unsigned R = EDGE_2;
+                const real_t tw = std::abs(i - EDGE_1 + real_t(0.5));
+                const real_t th = std::abs(j - EDGE_1 + real_t(0.5));
+                const real_t R = EDGE_2;
                 static const real_t pi = boost::math::constants::pi<real_t>();
-                const real_t cw = std::cos(pi * tw / (real_t)R);
-                const real_t ch = std::cos(pi * th / (real_t)R);
+                const real_t cw = std::cos(pi * tw / R);
+                const real_t ch = std::cos(pi * th / R);
                 *now = cw * ch;
+                //const int x = std::abs(i - EDGE_1);
+                //const int y = std::abs(j - EDGE_1);
+                //const int cx = x > half ? 
+                //const real_t b = 
+                BOOST_ASSERT(*now >= 0);
                 sum += *now;
             }
             ++now;
