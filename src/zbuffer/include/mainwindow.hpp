@@ -42,7 +42,7 @@ namespace cg
 
         void rotate_one_step_about_y();
 
-        void rotate();
+        void rotate(bool);
 
     protected:
         struct data_type;

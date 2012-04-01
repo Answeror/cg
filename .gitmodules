@@ -1,3 +1,12 @@
-[submodule "misc\\3rd\\cmake"]
-	path = misc\\3rd\\cmake
-	url = git@github.com:Answeror/cmake.git
+[submodule "misc\\3rd\\acmake"]
+	path = misc\\3rd\\cmlex
+	url = git@github.com:Answeror/ACMake.git
+[submodule "misc\\3rd\\cmlex"]
+	path = misc\\3rd\\cmlex
+	url = git@github.com:Answeror/CMLex.git
+[submodule "misc\\3rd\\ans"]
+	path = misc\\3rd\\ans
+	url = git@github.com:Answeror/ans.git
+[submodule "misc\\3rd\\OvenToBoost"]
+	path = misc\\3rd\\OvenToBoost
+	url = git@github.com:faithandbrave/OvenToBoost.git

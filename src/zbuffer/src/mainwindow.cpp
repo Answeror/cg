@@ -132,6 +132,11 @@ struct cg::mainwindow::data_type
         QAction *rotate;
     } actions;
 
+    struct timer_t
+    {
+        QTimer *rotate;
+    } timers;
+
     cg::view *view;
 
     cg::wavefront_obj_loader loader;
@@ -152,7 +157,9 @@ namespace
             data->actions.open = new QAction(tr("&Open"), this);
             connect(data->actions.open, SIGNAL(triggered()), this, SLOT(open()));
             data->actions.rotate = new QAction(tr("&Rotate"), this);
-            connect(data->actions.rotate, SIGNAL(triggered()), this, SLOT(rotate()));
+            data->actions.rotate->setCheckable(true);
+            data->actions.rotate->setChecked(false);
+            connect(data->actions.rotate, SIGNAL(toggled(bool)), this, SLOT(rotate(bool)));
         }
 
         void init_menu()
@@ -324,9 +331,19 @@ void cg::mainwindow::rotate_one_step_about_y()
     });
 }
 
-void cg::mainwindow::rotate()
+void cg::mainwindow::rotate(bool yes)
 {
-    auto tm = new QTimer(this);
-    connect(tm, SIGNAL(timeout()), this, SLOT(rotate_one_step_about_y()));
-    tm->start(100);
+    if (yes)
+    {
+        data->timers.rotate = new QTimer(this);
+        connect(data->timers.rotate, SIGNAL(timeout()), this, SLOT(rotate_one_step_about_y()));
+        data->timers.rotate->start(100);
+    }
+    else
+    {
+        if (data->timers.rotate)
+        {
+            data->timers.rotate->stop();
+        }
+    }
 }
