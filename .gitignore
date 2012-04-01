@@ -4,7 +4,7 @@ ipch/
 lib/
 Microsoft*/
 Release*/
-doc/
+doc/html/
 
 .svn/
 */.svn/
@@ -29,7 +29,7 @@ build*/
 *_p.c
 *.ilk
 *.meta
-*.obj
+# *.obj
 *.pch
 *.pdb
 *.pgc
