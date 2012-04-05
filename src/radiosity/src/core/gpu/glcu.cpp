@@ -18,52 +18,6 @@ cudaGraphicsResource_t cuda_resource;
 
 float rotation[3] = { 0.0f, 0.0f, 0.0f };  // Rotation parameter for scene object.
 
-void diaplay_image(GLuint texture, int x, int y, int width, int height);
-
-void delete_texture(GLuint &texture);
-
-void create_texture(GLuint &texture, int width, int height);
-
-void delete_depth_buffer(GLuint &depth_buffer);
-
-void create_depth_buffer(GLuint &depth_buffer, int width, int height);
-
-void delete_frame_buffer(GLuint &frame_buffer);
-
-void create_frame_buffer(
-    GLuint &frame_buffer,
-    GLuint color_attachment0,
-    GLuint depth_attachment
-    );
-
-void delete_cuda_resource(cudaGraphicsResource_t &resource)
-{
-    if (resource)
-    {
-        HANDLE_ERROR(cudaGraphicsUnregisterResource(resource));
-        resource = 0;
-    }
-}
-
-/// Map the GL texture resource with the CUDA resource.
-void create_cuda_resource(
-    cudaGraphicsResource_t &resource,
-    GLuint texture,
-    cudaGraphicsMapFlags flags
-    );
-
-void render_to_memory(int width, int height);
-
-void reshape(int w, int h);
-
-bool init_gl(int argc, char **argv);
-
-void init_cuda();
-
-void render_scene();
-
-void display();
-
 #if 0
 int main(int argc, char **argv)
 {
@@ -80,7 +34,9 @@ int main(int argc, char **argv)
 };
 #endif
 
-bool init_gl(int argc, char **argv)
+namespace glcu = cg::glcu;
+
+bool glcu::init_gl(int argc, char **argv)
 {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
@@ -131,7 +87,7 @@ bool init_gl(int argc, char **argv)
     return true;
 }
 
-void render_scene()
+void glcu::render_scene()
 {
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
@@ -156,19 +112,19 @@ void render_scene()
     glutSolidTeapot( 1.0 );
 }
 
-void reshape(int w, int h)
+void glcu::reshape(int w, int h)
 {
     h = std::max(h, 1);
 
     width = w;
     height = h;
 
-    render_to_memory(width, height);
+    render_to_memory(color_buffer_id, depth_buffer_id, frame_buffer_id, cuda_resource, width, height);
 
     glutPostRedisplay();
 }
 
-void diaplay_image(GLuint texture, int x, int y, int width, int height)
+void glcu::diaplay_image(GLuint texture, int x, int y, int width, int height)
 {
     glBindTexture(GL_TEXTURE_2D, texture);
     glEnable(GL_TEXTURE_2D);
@@ -202,7 +158,7 @@ void diaplay_image(GLuint texture, int x, int y, int width, int height)
     glDisable(GL_TEXTURE_2D);
 }
 
-void delete_texture(GLuint &texture)
+void glcu::delete_texture(GLuint &texture)
 {
     if (texture)
     {
@@ -211,7 +167,7 @@ void delete_texture(GLuint &texture)
     }
 }
 
-void create_texture(GLuint &texture, int width, int height)
+void glcu::create_texture(GLuint &texture, int width, int height)
 {
     // Make sure we don't already have a texture defined here
     delete_texture( texture );
@@ -232,7 +188,7 @@ void create_texture(GLuint &texture, int width, int height)
     glBindTexture( GL_TEXTURE_2D, 0 );
 }
 
-void delete_depth_buffer(GLuint &depth_buffer)
+void glcu::delete_depth_buffer(GLuint &depth_buffer)
 {
     if (depth_buffer)
     {
@@ -241,7 +197,7 @@ void delete_depth_buffer(GLuint &depth_buffer)
     }
 }
 
-void create_depth_buffer(GLuint &depth_buffer, int width, int height)
+void glcu::create_depth_buffer(GLuint &depth_buffer, int width, int height)
 {
     // delete the existing depth buffer if there is one
     delete_depth_buffer(depth_buffer);
@@ -252,7 +208,7 @@ void create_depth_buffer(GLuint &depth_buffer, int width, int height)
     glBindRenderbuffer(GL_RENDERBUFFER, depth_buffer);
 }
 
-void delete_frame_buffer(GLuint &frame_buffer)
+void glcu::delete_frame_buffer(GLuint &frame_buffer)
 {
     if (frame_buffer)
     {
@@ -261,7 +217,7 @@ void delete_frame_buffer(GLuint &frame_buffer)
     }
 }
 
-void create_frame_buffer(
+void glcu::create_frame_buffer(
     GLuint &frame_buffer,
     GLuint color_attachment0,
     GLuint depth_attachment
@@ -282,7 +238,7 @@ void create_frame_buffer(
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void create_cuda_resource(
+void glcu::create_cuda_resource(
     cudaGraphicsResource_t &resource,
     GLuint texture,
     cudaGraphicsMapFlags flags
@@ -291,7 +247,13 @@ void create_cuda_resource(
     cudaGraphicsGLRegisterImage(&resource, texture, GL_TEXTURE_2D, flags);
 }
 
-void render_to_memory(int width, int height)
+void glcu::render_to_memory(
+    GLuint &texture,
+    GLuint &depth_buffer,
+    GLuint &frame_buffer,
+    cudaGraphicsResource_t &cuda_resource,
+    int width, int height
+    )
 {
     // Create a surface texture to render the scene to.
     create_texture(color_buffer_id, width, height);
@@ -303,7 +265,7 @@ void render_to_memory(int width, int height)
     create_cuda_resource(cuda_resource, color_buffer_id, cudaGraphicsMapFlagsReadOnly);
 }
 
-void display()
+void glcu::display()
 {
     // Bind the framebuffer that we want to use as the render target.
     glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer_id);
@@ -311,13 +273,13 @@ void display()
     // Unbind the framebuffer so we render to the back buffer again.
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    cg::glcu(cuda_resource, width, height);
+    test(cuda_resource, width, height);
 
     glutSwapBuffers();
     glutPostRedisplay();
 }
 
-void init_cuda()
+void glcu::init_cuda()
 {
     cudaDeviceProp prop = {0};
     int dev;
@@ -325,4 +287,13 @@ void init_cuda()
     prop.minor = 0;
     HANDLE_ERROR(cudaChooseDevice(&dev, &prop));
     HANDLE_ERROR(cudaGLSetGLDevice(dev));
+}
+
+void glcu::delete_cuda_resource(cudaGraphicsResource_t &resource)
+{
+    if (resource)
+    {
+        HANDLE_ERROR(cudaGraphicsUnregisterResource(resource));
+        resource = 0;
+    }
 }
