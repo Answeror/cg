@@ -18,7 +18,7 @@ include(ans.cmlex_support)
 cmlex_support()
 
 include(ans.cuda_support)
-cuda_support()
+cuda_support(ARCHS 13)
 cuda_add_executable(radiosity ${FILES})
 
 include(ans.openmesh_support)

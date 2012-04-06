@@ -85,7 +85,7 @@ namespace cg { namespace openmesh
 
     int patch_count(const trimesh &mesh);
 
-    patch_range patches(trimesh &mesh);
+    patch_range patches(const trimesh &mesh);
 
     inline patch_handle get_patch(const trimesh &mesh, int i) { return mesh.face_handle(i); }
 

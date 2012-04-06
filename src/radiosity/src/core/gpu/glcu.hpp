@@ -55,9 +55,9 @@ namespace cg { namespace glcu
         );
 
     void render_to_memory(
-        GLuint &texture,
-        GLuint &depth_buffer,
-        GLuint &frame_buffer,
+        GLuint &color_buffer_id,
+        GLuint &depth_buffer_id,
+        GLuint &frame_buffer_id,
         cudaGraphicsResource_t &cuda_resource,
         int width, int height
         );

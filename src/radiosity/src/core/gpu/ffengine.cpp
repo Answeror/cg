@@ -16,27 +16,30 @@
 #include <GL/glut.h>
 
 #include "ffengine.hpp"
-#include "ffengine_impl.hpp"
 #include "glcu.hpp"
+#include "calcff.hpp"
+#include "core/hemicube.hpp"
+#include "core/hemicube_impl.hpp"
 
 namespace gpu = cg::gpu;
 
-gpu::ffengine::ffengine() : data(ans::alpha::pimpl::use_default_ctor())
+gpu::ffengine::ffengine()
 {
-    method(this)->init();
+    init();
 }
 
 gpu::ffengine::~ffengine()
 {}
 
-void gpu::ffengine_method::init()
+void gpu::ffengine::init()
 {
     init_gl();
     init_cuda();
     init_coeffs();
+    init_render_to_memory();
 }
 
-void gpu::ffengine_method::init_gl()
+void gpu::ffengine::init_gl()
 {
     static boost::mutex mu;
     boost::lock_guard<boost::mutex> lock(mu);
@@ -49,7 +52,7 @@ void gpu::ffengine_method::init_gl()
     char *argv = "ffengine";
 
     glutInit(&argc, &argv);
-    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
+    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA | GLUT_DEPTH);
     glutInitWindowSize(EDGE_LENGTH, EDGE_LENGTH);
     glutCreateWindow("glcu");
     //glutDisplayFunc(&display);
@@ -87,19 +90,40 @@ void gpu::ffengine_method::init_gl()
     glMatrixMode(GL_MODELVIEW);
 }
 
-void gpu::ffengine_method::init_cuda()
+void gpu::ffengine::init_cuda()
 {
     glcu::init_cuda();
 }
 
-void gpu::ffengine_method::init_render_to_memory()
+void gpu::ffengine::init_render_to_memory()
 {
     glcu::render_to_memory(
-        data->color_buffer_id,
-        data->depth_buffer_id,
-        data->frame_buffer_id,
-        data->cuda_resource,
+        color_buffer_id,
+        depth_buffer_id,
+        frame_buffer_id,
+        cuda_resource,
         EDGE_2,
         EDGE_2
         );
+}
+
+void gpu::ffengine::calc_ff(int patch_count)
+{
+    // init ffs
+    //ffs.assign(patch_count, 0);
+    ffs.resize(patch_count);
+    calcff(patch_count, EDGE_2, EDGE_2, cuda_resource, coeffs.get(), ffs.data());
+}
+
+void gpu::ffengine::init_coeffs()
+{
+    float hc[EDGE_2 * EDGE_2];
+    cg::hemicube::make_coeffs(
+        boost::make_iterator_range(hc, hc + EDGE_2 * EDGE_2),
+        EDGE_1
+        );
+    float *dc = nullptr;
+    HANDLE_ERROR(cudaMalloc((void**)&dc, sizeof(float) * EDGE_2 * EDGE_2));
+    HANDLE_ERROR(cudaMemcpy(dc, hc, sizeof(float) * EDGE_2 * EDGE_2, cudaMemcpyHostToDevice));
+    this->coeffs.reset(dc, cudaFree);
 }

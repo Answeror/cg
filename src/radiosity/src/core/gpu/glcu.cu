@@ -56,7 +56,7 @@ void output(uchar4 *p, int W, int H)
     }
 }
 
-void cg::glcu(cudaGraphicsResource_t target, int width, int height)
+void cg::glcu::test(cudaGraphicsResource_t target, int width, int height)
 {
     HANDLE_ERROR(cudaGraphicsMapResources(1, &target, NULL));
     cudaArray *arr;

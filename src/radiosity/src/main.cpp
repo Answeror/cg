@@ -15,6 +15,8 @@
 #include "core/rader_impl.hpp"
 #include "core/ffengine.hpp"
 #include "core/ffengine_impl.hpp"
+//#include "core/gpu/ffengine.hpp"
+//#include "core/gpu/ffengine_impl.hpp"
 #include "adapt/openmesh.hpp"
 #include "io.hpp"
 #include "cornell_box.hpp"
@@ -40,7 +42,8 @@ int main()
     {
         auto mesh = cg::make_cornell_box();
         cg::ffengine<op::trimesh> engine;
-        //engine.init(mesh.get());
+        engine.init(mesh.get());
+        //cg::gpu::ffengine engine;
         auto nosubdivide = [](op::trimesh&, double){};
         cg::rader(static_cast<op::channels::red::trimesh&>(*mesh), engine, subdivide);
         cg::rader(static_cast<op::channels::green::trimesh&>(*mesh), engine, nosubdivide);

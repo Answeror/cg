@@ -91,7 +91,7 @@ int op::patch_count(const trimesh &mesh)
     return mesh.n_faces();
 }
 
-op::patch_range op::patches(trimesh &mesh)
+op::patch_range op::patches(const trimesh &mesh)
 {
     return boost::make_iterator_range(
         mesh.faces_begin(),

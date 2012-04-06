@@ -42,6 +42,7 @@
 #include "hemicube_impl.hpp"
 #include "ffvec.hpp"
 #include "ffvec_impl.hpp"
+#include "gpu/glcu.hpp"
 
 #include <iostream>
 #include "ppm.hpp"
@@ -66,11 +67,17 @@ struct cg::ffengine<Mesh>::data_type
     real_t coeffs[EDGE_2][EDGE_2];
     boost::optional<GLuint> display_list_id;
     ffvec<real_t> ffs;
+    GLuint color_buffer_id;
+    GLuint depth_buffer_id;
+    GLuint frame_buffer_id;
 
     data_type() :
         mesh(nullptr),
         inited(false),
-        coeffs_inited(false)
+        coeffs_inited(false),
+        color_buffer_id(0),
+        depth_buffer_id(0),
+        frame_buffer_id(0)
     {}
 };
 
@@ -122,6 +129,18 @@ namespace
 #endif
             }
         }
+
+        void init_render_target()
+        {
+            glcu::render_to_memory(
+                color_buffer_id,
+                depth_buffer_id,
+                frame_buffer_id,
+                cuda_resource,
+                EDGE_2,
+                EDGE_2
+                );
+        }
     };
 
     template<class Mesh>
@@ -149,7 +168,7 @@ namespace
         char *argv = "ffengine";
 
         glutInit(&argc, &argv);
-        glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
+        glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA | GLUT_DEPTH);
         glutInitWindowSize(EDGE_LENGTH, EDGE_LENGTH);
         glutCreateWindow("glcu");
         //glutDisplayFunc(&display);
@@ -232,8 +251,10 @@ typename cg::ffengine<Mesh>::ffinfo_range
     cg::ffengine<Mesh>::operator ()(patch_handle shooter)
 {
     BOOST_ASSERT(data->inited);
+    glBindFramebuffer(GL_FRAMEBUFFER, data->frame_buffer_id);
     method(this)->render_scene(shooter);
     method(this)->calc_ff();
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     return static_cast<const ffinfo_range&>(data->ffs.get());
 }
 

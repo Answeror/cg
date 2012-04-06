@@ -16,82 +16,16 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/optional.hpp>
+#include <boost/range/adaptor/type_erased.hpp>
+#include <boost/range/adaptor/filtered.hpp>
+#include <boost/range/adaptor/transformed.hpp>
+#include <boost/range/irange.hpp>
 
 #include <GL/glew.h>
 
-#include <ans/alpha/pimpl.hpp>
-#include <ans/alpha/pimpl_impl.hpp>
-#include <ans/alpha/method.hpp>
-
-#include <cuda_runtime_api.h>
-#include <cuda_gl_interop.h>
-
 #include "ffengine.hpp"
 
-namespace
-{
-    const int EDGE_1 = 256;	 ///< size (in pixels) of hemi-cube edge
-    const int EDGE_2 = 2*EDGE_1;	///< EDGE_1 * 2 (size of important area in hemicube)
-    const int EDGE_LENGTH = 3*EDGE_1;	 ///< size (pixels) of render viewport
-}
-
-struct cg::gpu::ffengine::data_type
-{
-    boost::shared_ptr<real> coeffs;
-    boost::optional<GLuint> display_list_id;
-    GLuint frame_buffer_id;
-    GLuint depth_buffer_id;
-    GLuint color_buffer_id;
-    cudaGraphicsResource_t cuda_resource;
-    ffinfo_container ffs;
-};
-
-namespace cg { namespace gpu
-{
-    struct ffengine_method : ffengine
-    {
-        void init();
-
-        void init_gl();
-
-        void init_cuda();
-
-        void init_coeffs();
-
-        void init_render_to_memory();
-
-        template<class Mesh>
-        void render_scene(
-            const Mesh &mesh,
-            typename mesh_traits::patch_handle<Mesh>::type shooter 
-            );
-
-        template<class Mesh>
-        void render_viewport(
-            const Mesh &mesh,
-            const GLint xx,
-            const GLint yy,
-            const typename mesh_traits::vertex<Mesh>::type &c,
-            const typename mesh_traits::vertex<Mesh>::type &at,
-            const typename mesh_traits::vertex<Mesh>::type &up
-            );
-
-        template<class Mesh>
-        void draw(const Mesh &mesh);
-
-        void calc_ff();
-    };
-
-    inline ffengine_method* method(ffengine *ffe)
-    {
-        return ans::alpha::functional::method<ffengine_method>()(ffe);
-    }
-
-    inline const ffengine_method* method(const ffengine *ffe)
-    {
-        return ans::alpha::functional::method<ffengine_method>()(ffe);
-    }
-}}
+namespace boad = boost::adaptors;
 
 template<class Mesh>
 cg::gpu::ffengine::ffinfo_range
@@ -100,30 +34,38 @@ cg::gpu::ffengine::ffinfo_range
     typename mesh_traits::patch_handle<Mesh>::type shooter 
     )
 {
-    method(this)->render_scene(mesh, shooter);
-    method(this)->calc_ff();
-    return boost::make_iterator_range(data->ffs);
+    render_scene(mesh, shooter);
+    calc_ff(patch_count(mesh));
+    //return boost::make_iterator_range(ffs);
+    return boost::irange<int>(0, patch_count(mesh)) | boad::filtered([&](int i){
+        return ffs[i] > 1e-42;
+    }) | boad::transformed([&](int i) -> ffinfo {
+        ffinfo info = {i, ffs[i]};
+        return info;
+    });
 }
 
 template<class Mesh>
-void cg::gpu::ffengine_method::render_scene(
+void cg::gpu::ffengine::render_scene(
     const Mesh &mesh,
     typename mesh_traits::patch_handle<Mesh>::type shooter 
     )
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, data->frame_buffer_id);
+    typedef typename mesh_traits::vertex<Mesh>::type vector3r;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, frame_buffer_id);
 
     // clear window
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // destination triangle
-    auto &t0 = dest;
+    auto &t0 = shooter;
 
     // center of this triangle
-    auto c = center(*data->mesh, t0);
+    auto c = center(mesh, t0);
 
     // normal vector and inverse normal vector of this triangle
-    auto norm = normal(*data->mesh, t0);
+    auto norm = normal(mesh, t0);
     auto norm_m = -norm;
 
     auto side = cross(norm, vector3r(1, 2, 3));
@@ -169,7 +111,7 @@ void cg::gpu::ffengine_method::render_scene(
 }
 
 template<class Mesh>
-void cg::gpu::ffengine_method::render_viewport(
+void cg::gpu::ffengine::render_viewport(
     const Mesh &mesh,
     const GLint xx,
     const GLint yy,
@@ -185,32 +127,60 @@ void cg::gpu::ffengine_method::render_viewport(
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     gluLookAt(x(c), y(c), z(c), x(at), y(at), z(at), x(up), y(up), z(up));
-    draw();
+    draw(mesh);
+}
+
+namespace
+{
+    inline void encode_color(int i)
+    {
+        glColor3ub((i)&0xff, (i>>8)&0xff, (i>>16)&0xff);
+    }
+
+    template<class Mesh, class Patch>
+    inline void ensure_triangle(const Mesh &mesh, const Patch &t)
+    {
+        BOOST_ASSERT(3 == vertex_count(mesh, t));
+    }
+
+    /// to select proper gl function
+    inline void glVertex3(double x, double y, double z)
+    {
+        glVertex3d(x, y, z);
+    }
+    inline void glVertex3(float x, float y, float z)
+    {
+        glVertex3f(x, y, z);
+    }
 }
 
 template<class Mesh>
-void cg::gpu::ffengine_method::draw(const Mesh &mesh)
+void cg::gpu::ffengine::draw(const Mesh &mesh)
 {
-    if (!data->display_list_id)
+    if (!display_list_id)
     {
-        data->display_list_id = glGenLists(1);
-        glNewList(*data->display_list_id, GL_COMPILE);
-        boost::timer tm;
+        display_list_id = glGenLists(1);
+        glNewList(*display_list_id, GL_COMPILE);
+        //boost::timer tm;
         glBegin(GL_TRIANGLES);
-        boost::for_each(patches(*data->mesh), [&](const patch_handle &t)
+        //boost::for_each(patches(mesh), [&](const typename cg::mesh_traits::patch_handle<Mesh>::type &t)
+        for each (auto &t in patches(mesh))
         {
-            ensure_triangle(*data->mesh, t);
+            ensure_triangle(mesh, t);
             encode_color(index(t));
-            boost::for_each(vertices(*data->mesh, t), [&](const vector3r &v)
+            //boost::for_each(vertices(mesh, t), [&](const typename cg::mesh_traits::vertex<Mesh>::type &v)
+            for each (auto &v in vertices(mesh, t))
             {
                 glVertex3(x(v), y(v), z(v));
-            });
-        });
+            }
+            //});
+        }
+        //});
         glEnd();
-        bofu::at_key<cg::tags::draw_time>(cg::log) += tm.elapsed();
+        //bofu::at_key<cg::tags::draw_time>(cg::log) += tm.elapsed();
         glEndList();
     }
-    glCallList(*data->display_list_id);
+    glCallList(*display_list_id);
 }
 
 #endif // __FFENGINE_IMPL_HPP_20120405170236__

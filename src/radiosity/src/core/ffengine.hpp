@@ -35,7 +35,7 @@ namespace cg
         typedef typename mesh_traits::vertex<Mesh>::type vector3r;
         typedef typename mesh_traits::patch_handle<Mesh>::type patch_handle;
         typedef typename patch_handle_traits::index_type<patch_handle>::type patch_index;
-        typedef std::map<patch_index, real_t> ffcontainer;
+        //typedef std::map<patch_index, real_t> ffcontainer;
 
         struct ffinfo_range;
 
@@ -47,8 +47,8 @@ namespace cg
     public:
         void init(mesh_type *mesh);
 
-        /// calculate form factors from shooter
-        void operator ()(patch_handle shooter, ffcontainer &ffs);
+        ///// calculate form factors from shooter
+        //void operator ()(patch_handle shooter, ffcontainer &ffs);
 
         ffinfo_range operator ()(patch_handle shooter);
 

@@ -45,7 +45,7 @@ namespace boad = boost::adaptors;
 
 namespace
 {
-    const int MAX_STEP = 10000;
+    const int MAX_STEP = 100;
     const double MAX_RADIO = 100;
     const double SUBDIVIDE = 10;
 
@@ -183,15 +183,15 @@ void RADER_IMPL_TPL::operator ()(Mesh *mesh_, FormFactorEngine  *engine_, const 
     boost::timer tm;
     while (!terminate())
     {
-        std::cout << "step\t" << step_count + 1 << "\t" << max_rest_radiosity / max_radiosity << ":\t";
-        boost::timer tm;
+        //std::cout << "step\t" << step_count + 1 << "\t" << max_rest_radiosity / max_radiosity << ":\t";
+        //boost::timer tm;
         step();
-        std::cout << tm.elapsed() << std::endl;
+        //std::cout << tm.elapsed() << std::endl;
         ++step_count;
         ++bofu::at_key<cg::tags::step_count>(cg::log);
     }
     bofu::at_key<cg::tags::total_time>(cg::log) += tm.elapsed();
-    std::cout << "total:\t" << tm.elapsed() << std::endl;
+    //std::cout << "total:\t" << tm.elapsed() << std::endl;
 }
 
 RADER_IMPL_TPL_HEAD
@@ -209,6 +209,7 @@ void RADER_IMPL_TPL::step()
     // update patches
     {
         boost::timer tm;
+        //for each (auto info in (*engine)(*mesh, shooter))
         for each (auto info in (*engine)(shooter))
         {
         //boost::for_each(ids, [&](int reciver_id){
@@ -219,16 +220,16 @@ void RADER_IMPL_TPL::step()
                 reflectivity(*mesh, reciver),
                 get(rest_radiosity, shooter_id),
                 //get(F, reciver_id),
-                value(info),
+                real_t(value(info)),
                 area(*mesh, shooter),
                 area(*mesh, reciver)
                 );
 
             /// @optimization only update non shooted patch
-            if (get(rest_radiosity, reciver_id) >= 0)
-            {
+            //if (get(rest_radiosity, reciver_id) >= 0)
+            //{
                 put(rest_radiosity, reciver_id, get(rest_radiosity, reciver_id) + dr);
-            }
+            //}
 
             set_radiosity(*mesh, reciver, radiosity(*mesh, reciver) + dr);
 
@@ -239,9 +240,9 @@ void RADER_IMPL_TPL::step()
         bofu::at_key<cg::tags::update_patch_time>(cg::log) += tm.elapsed();
     }
 
-    auto old = get(rest_radiosity, shooter_id);
+    //auto old = get(rest_radiosity, shooter_id);
     /// @optimization use -1 to mark shooted patch, never shoot again
-    put(rest_radiosity, shooter_id, -1);
+    //put(rest_radiosity, shooter_id, -1);
     //if (old <= max_rest_radiosity)
     //{
         /// @todo tobe optimized

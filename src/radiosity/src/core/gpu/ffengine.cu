@@ -8,23 +8,5 @@
  *  
  */
 
-#include "ffengine.hpp"
-#include "ffengine_impl.hpp"
+//#include <boost/range/algorithm/fill.hpp>
 
-namespace gpu = cg::gpu;
-
-namespace
-{
-    void go(
-        int width,
-        int height, 
-        cudaGraphicsResource_t cuda_resource,
-        const float *coeffs, ///< device side
-        float *ffs ///< host side, must be inited outside
-        );
-}
-
-void gpu::ffengine_method::calc_ff()
-{
-    go(EDGE_2, EDGE_2, data->cuda_resource, 
-}
