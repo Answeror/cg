@@ -21,20 +21,19 @@
 namespace cg
 {
     template<class Real>
+    struct ffinfo
+    {
+        int m_id;
+        Real m_value;
+    };
+
+    template<class Real>
     class ffvec : boost::noncopyable
     {
     public:
         typedef ffvec this_type;
         typedef Real real_t;
-
-        struct ffinfo
-        {
-            int m_id;
-            real_t m_value;
-
-            friend int id(const ffinfo &info) { return info.m_id; }
-            friend real_t value(const ffinfo &info) { return info.m_value; }
-        };
+        typedef ffinfo<Real> ffinfo;
 
         struct updater;
         struct ffinfo_range;
@@ -86,6 +85,18 @@ namespace cg
          */
         void inc(int id, real_t value);
     };
+
+    template<class Real>
+    inline int id(const ffinfo<Real> &info) { return info.m_id; }
+
+    template<class Real>
+    inline Real value(const ffinfo<Real> &info) { return info.m_value; }
+}
+
+namespace
+{
+    using cg::id;
+    using cg::value;
 }
 
 #endif // __FFVEC_HPP_20120331133009__

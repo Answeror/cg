@@ -25,6 +25,7 @@
 #include <boost/range/adaptor/map.hpp>
 #include <boost/timer.hpp>
 #include <boost/optional.hpp>
+#include <boost/function/function0.hpp>
 
 // for init_gl
 #include <boost/thread.hpp>
@@ -55,6 +56,8 @@ namespace
     const int EDGE_1 = 256;	 ///< size (in pixels) of hemi-cube edge
     const int EDGE_2 = 2*EDGE_1;	///< EDGE_1 * 2 (size of important area in hemicube)
     const int EDGE_LENGTH = 3*EDGE_1;	 ///< size (pixels) of render viewport
+
+    boost::mutex opengl_based_ff_mutex;
 }
 
 template<class Mesh>
@@ -70,6 +73,7 @@ struct cg::ffengine<Mesh>::data_type
     GLuint color_buffer_id;
     GLuint depth_buffer_id;
     GLuint frame_buffer_id;
+    std::vector<unsigned char> pixels;
 
     data_type() :
         mesh(nullptr),
@@ -138,8 +142,8 @@ namespace
                 ans::guard g = ans::make_guard([&](){ this->data->render_target_inited = true; });
 
                 using namespace cg::glcu;
-                const int width = EDGE_2;
-                const int height = EDGE_2;
+                const int width = EDGE_LENGTH;
+                const int height = EDGE_LENGTH;
                 // Create a surface texture to render the scene to.
                 create_texture(data->color_buffer_id, width, height);
                 // Create a depth buffer for the frame buffer object.
@@ -147,6 +151,15 @@ namespace
                 // Attach the color and depth textures to the framebuffer.
                 create_frame_buffer(data->frame_buffer_id, data->color_buffer_id, data->depth_buffer_id);
             }
+        }
+
+        void read_pixels()
+        {
+            GLsizei width = EDGE_LENGTH;
+            GLsizei height = EDGE_LENGTH;
+            auto area = width * height * 3;
+            data->pixels.resize(area);
+            glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data->pixels.data());
         }
     };
 
@@ -250,12 +263,30 @@ template<class Mesh>
 typename cg::ffengine<Mesh>::ffinfo_range
     cg::ffengine<Mesh>::operator ()(patch_handle shooter)
 {
+    return extract_thread_safe_part(shooter)();
+}
+
+template<class Mesh>
+typename cg::ffengine<Mesh>::thread_safe_computation
+    cg::ffengine<Mesh>::extract_thread_safe_part(patch_handle shooter)
+{
     BOOST_ASSERT(data->inited);
-    glBindFramebuffer(GL_FRAMEBUFFER, data->frame_buffer_id);
-    ans::guard g = ans::make_guard([&](){ glBindFramebuffer(GL_FRAMEBUFFER, 0); });
-    method(this)->render_scene(shooter);
-    method(this)->calc_ff();
-    return static_cast<const ffinfo_range&>(data->ffs.get());
+    {
+        //boost::lock_guard<boost::mutex> guard(opengl_based_ff_mutex);
+        //std::cout << "in\n";
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, data->frame_buffer_id);
+            ans::guard g = ans::make_guard([&](){ glBindFramebuffer(GL_FRAMEBUFFER, 0); });
+            method(this)->render_scene(shooter);
+            method(this)->read_pixels();
+        }
+        //std::cout << "out\n";
+    }
+    return [&]() -> ffinfo_range
+    {
+        method(this)->calc_ff();
+        return static_cast<const ffinfo_range&>(this->data->ffs.get());
+    };
 }
 
 template<class Mesh>
@@ -361,62 +392,14 @@ namespace
     }
 }
 
-//template<class Mesh>
-//void ffengine_method<Mesh>::calc_ff(ffcontainer &ffs)
-//{
-//    boost::timer tm;
-//
-//    GLsizei width = EDGE_LENGTH;
-//    GLsizei height = EDGE_LENGTH;
-//    auto area = width * height * 3;
-//    std::vector<unsigned char> buffer(area);
-//    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
-//#if 0
-//    {
-//        cg::ppm::write(buffer.data(), width, height, "middle.ppm");
-//        std::cout << "press any key...\n";
-//        std::getchar();
-//    }
-//#endif
-//    for (int y = 128; y != (128 + 512); ++y)
-//    {
-//        for (int x = 128; x != (128 + 512); ++x)
-//        {
-//            auto p = buffer.data() + 3 * (y * height + x);
-//            auto r = p[0];
-//            auto g = p[1];
-//            auto b = p[2];
-//            auto color = ((unsigned)r) + ((unsigned)g << 8) + ((unsigned)b << 16);
-//            if (color < patch_count(*data->mesh))
-//            {
-//                ffs[color] += data->coeffs[x - 128][y - 128];
-//            }
-//            else
-//            {
-//                BOOST_ASSERT(color == 0xffffff);
-//            }
-//        }
-//    }
-//
-//    //real_t S = 256.0f*256.0f+4*256.0f*128.0f;
-//    //boost::for_each(boad::values(ffs), [&](real_t &value)
-//    //{
-//    //    value /= S;
-//    //});
-//
-//    bofu::at_key<cg::tags::count_pixel_time>(cg::log) += tm.elapsed();
-//}
-
 template<class Mesh>
 void ffengine_method<Mesh>::calc_ff()
 {
     boost::timer tm;
 
-    GLsizei width = EDGE_LENGTH;
-    GLsizei height = EDGE_LENGTH;
-    auto area = width * height * 3;
-    std::vector<unsigned char> buffer(area);
-    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, buffer.data());
+    const int width = EDGE_LENGTH;
+    const int height = EDGE_LENGTH;
+
 #if 0
     {
         cg::ppm::write(buffer.data(), width, height, "middle.ppm");
@@ -430,7 +413,7 @@ void ffengine_method<Mesh>::calc_ff()
         {
             for (int x = 128; x != (128 + 512); ++x)
             {
-                auto p = buffer.data() + 3 * (y * height + x);
+                auto p = data->pixels.begin() + 3 * (y * height + x);
                 auto r = p[0];
                 auto g = p[1];
                 auto b = p[2];
@@ -454,12 +437,6 @@ void ffengine_method<Mesh>::calc_ff()
             }
         }
     });
-
-    //real_t S = 256.0f*256.0f+4*256.0f*128.0f;
-    //boost::for_each(boad::values(ffs), [&](real_t &value)
-    //{
-    //    value /= S;
-    //});
 
     bofu::at_key<cg::tags::count_pixel_time>(cg::log) += tm.elapsed();
 }

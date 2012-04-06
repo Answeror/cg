@@ -18,6 +18,7 @@
 
 #include <boost/concept/requires.hpp>
 #include <boost/noncopyable.hpp>
+#include <boost/function/function_fwd.hpp>
 
 #include <ans/alpha/pimpl.hpp>
 
@@ -29,7 +30,7 @@ namespace cg
     template<class Mesh>
     class ffengine : boost::noncopyable
     {
-    protected:
+    public:
         typedef Mesh mesh_type;
         typedef mesh_type *mesh_ptr;
         typedef typename mesh_traits::value_type<Mesh>::type real_t;
@@ -38,6 +39,7 @@ namespace cg
         typedef typename patch_handle_traits::index_type<patch_handle>::type patch_index;
 
         struct ffinfo_range;
+        typedef boost::function<ffinfo_range()> thread_safe_computation;
 
     public:
         ffengine();
@@ -48,6 +50,8 @@ namespace cg
         void init(mesh_ptr mesh);
 
         ffinfo_range operator ()(patch_handle shooter);
+
+        thread_safe_computation extract_thread_safe_part(patch_handle shooter);
 
     protected:
         struct data_type;

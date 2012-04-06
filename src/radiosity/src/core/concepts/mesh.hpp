@@ -84,7 +84,7 @@ namespace cg { namespace concepts
             /// all of these should be O(1) operation
             const_vertex_range cvs = vertices(mesh);
             const_vertex_range pcvs = vertices(mesh, patch);
-            value_type(emission(mesh, patch))
+            value_type(emission(mesh, patch));
             value_type(reflectivity(mesh, patch));
             value_type(radiosity(mesh, patch));
             value_type(area(mesh, patch));
