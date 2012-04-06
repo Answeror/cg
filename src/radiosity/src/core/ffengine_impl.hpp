@@ -35,6 +35,7 @@
 #include <ans/alpha/method.hpp>
 #include <ans/alpha/pimpl.hpp>
 #include <ans/alpha/pimpl_impl.hpp>
+#include <ans/guard.hpp>
 
 #include "ffengine.hpp"
 #include "log.hpp"
@@ -59,11 +60,10 @@ namespace
 template<class Mesh>
 struct cg::ffengine<Mesh>::data_type
 {
-    typedef typename cg::mesh_traits::value_type<Mesh>::type real_t;
-
-    mesh_type *mesh;
+    mesh_ptr mesh;
     bool inited;
     bool coeffs_inited;
+    bool render_target_inited;
     real_t coeffs[EDGE_2][EDGE_2];
     boost::optional<GLuint> display_list_id;
     ffvec<real_t> ffs;
@@ -75,6 +75,7 @@ struct cg::ffengine<Mesh>::data_type
         mesh(nullptr),
         inited(false),
         coeffs_inited(false),
+        render_target_inited(false),
         color_buffer_id(0),
         depth_buffer_id(0),
         frame_buffer_id(0)
@@ -118,11 +119,11 @@ namespace
         {
             if (!data->coeffs_inited)
             {
+                ans::guard g = ans::make_guard([&](){ this->data->coeffs_inited = true; });
                 cg::hemicube::make_coeffs(
                     boost::make_iterator_range(data->coeffs[0], data->coeffs[0] + EDGE_2 * EDGE_2),
                     EDGE_1
                     );
-                data->coeffs_inited = true;
 #if 0
                 cg::ppm::write(data->coeffs[0], EDGE_2, EDGE_2, "coeffs.ppm");
                 std::cout << "coeffs outputed\n";
@@ -132,14 +133,20 @@ namespace
 
         void init_render_target()
         {
-            glcu::render_to_memory(
-                color_buffer_id,
-                depth_buffer_id,
-                frame_buffer_id,
-                cuda_resource,
-                EDGE_2,
-                EDGE_2
-                );
+            if (!data->render_target_inited)
+            {
+                ans::guard g = ans::make_guard([&](){ this->data->render_target_inited = true; });
+
+                using namespace cg::glcu;
+                const int width = EDGE_2;
+                const int height = EDGE_2;
+                // Create a surface texture to render the scene to.
+                create_texture(data->color_buffer_id, width, height);
+                // Create a depth buffer for the frame buffer object.
+                create_depth_buffer(data->depth_buffer_id, width, height);
+                // Attach the color and depth textures to the framebuffer.
+                create_frame_buffer(data->frame_buffer_id, data->color_buffer_id, data->depth_buffer_id);
+            }
         }
     };
 
@@ -223,14 +230,15 @@ cg::ffengine<Mesh>::~ffengine()
 }
 
 template<class Mesh>
-void cg::ffengine<Mesh>::init(mesh_type *mesh)
+void cg::ffengine<Mesh>::init(mesh_ptr mesh)
 {
     BOOST_ASSERT(mesh);
+    ans::guard g = ans::make_guard([&](){ this->data->inited = true; });
     data->mesh = mesh;
     init_gl();
     method(this)->init_coeffs();
+    method(this)->init_render_target();
     data->ffs.resize(patch_count(*mesh));
-    data->inited = true;
 }
 
 template<class Mesh>
@@ -238,23 +246,15 @@ struct cg::ffengine<Mesh>::ffinfo_range :
     cg::ffvec<typename cg::mesh_traits::value_type<Mesh>::type>::ffinfo_range
 {};
 
-//template<class Mesh>
-//void cg::ffengine<Mesh>::operator ()(patch_handle shooter, ffcontainer &ffs)
-//{
-//    BOOST_ASSERT(data->inited);
-//    method(this)->render_scene(shooter);
-//    method(this)->calc_ff(ffs);
-//}
-
 template<class Mesh>
 typename cg::ffengine<Mesh>::ffinfo_range
     cg::ffengine<Mesh>::operator ()(patch_handle shooter)
 {
     BOOST_ASSERT(data->inited);
     glBindFramebuffer(GL_FRAMEBUFFER, data->frame_buffer_id);
+    ans::guard g = ans::make_guard([&](){ glBindFramebuffer(GL_FRAMEBUFFER, 0); });
     method(this)->render_scene(shooter);
     method(this)->calc_ff();
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     return static_cast<const ffinfo_range&>(data->ffs.get());
 }
 

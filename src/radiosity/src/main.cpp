@@ -42,7 +42,7 @@ int main()
     {
         auto mesh = cg::make_cornell_box();
         cg::ffengine<op::trimesh> engine;
-        engine.init(mesh.get());
+        //engine.init(mesh.get());
         //cg::gpu::ffengine engine;
         auto nosubdivide = [](op::trimesh&, double){};
         cg::rader(static_cast<op::channels::red::trimesh&>(*mesh), engine, subdivide);
