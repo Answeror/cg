@@ -35,6 +35,14 @@ namespace cg
         void expose(openmesh::trimesh &mesh, cg::mesh_traits::value_type<openmesh::trimesh>::type exposure);
 
         void interpolate_vertex_color(openmesh::trimesh &mesh);
+
+        void interpolate_face_color(openmesh::trimesh &mesh);
+
+        void face_color_to_reflectivity(openmesh::trimesh &mesh);
+
+        void clear_emission(openmesh::trimesh &mesh);
+
+        void prepare_area(openmesh::trimesh &mesh);
     }
 }
 

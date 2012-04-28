@@ -52,8 +52,8 @@ namespace boad = boost::adaptors;
 namespace
 {
     const int MAX_STEP = 10000;
-    const double MAX_RADIO = 100;
-    const double SUBDIVIDE = 10;
+    //const double MAX_RADIO = 100;
+    //const double SUBDIVIDE = 10;
 
     template<class Mesh, class FormFactorEngineRange, class Subdivide>
     struct rader_impl
@@ -92,7 +92,7 @@ namespace
         {
             // subdivide mesh to small and uniform patches
             // @note perform this before init!
-            subdivide(*mesh, max_scale(*mesh) / SUBDIVIDE);
+            subdivide(*mesh);
 
             init(mesh);
 
@@ -154,39 +154,6 @@ namespace
 
 namespace
 {
-    /// aabb bounding box
-    template<class Mesh>
-    void aabb(
-        const Mesh &mesh,
-        double &xmin,
-        double &xmax,
-        double &ymin,
-        double &ymax,
-        double &zmin,
-        double &zmax
-        )
-    {
-        xmin = ymin = zmin = 1e42;
-        xmax = ymax = zmax = -1e42;
-        boost::for_each(vertices(mesh), [&](const typename cg::mesh_traits::vertex<Mesh>::type &v){
-            xmin = std::min(xmin, x(v));
-            xmax = std::max(xmax, x(v));
-            ymin = std::min(ymin, y(v));
-            ymax = std::max(ymax, y(v));
-            zmin = std::min(zmin, z(v));
-            zmax = std::max(zmax, z(v));
-        });
-    }
-
-    /// the maximum size of x, y, z degree of mesh
-    template<class Mesh>
-    inline double max_scale(const Mesh &mesh)
-    {
-        double xmin, xmax, ymin, ymax, zmin, zmax;
-        aabb(mesh, xmin, xmax, ymin, ymax, zmin, zmax);
-        return std::max(xmax - xmin, std::max(ymax - ymin, zmax - zmin));
-    }
-
     /// @todo add area items
     template<class Real>
     inline Real calc_delta_radiosity(Real reflectivity, Real rest_radiosity, Real F, Real shooter_area, Real reciver_area)
@@ -397,7 +364,7 @@ typename RADER_IMPL_TPL::patch_handle RADER_IMPL_TPL::select_shooter()
 RADER_IMPL_TPL_HEAD
 bool RADER_IMPL_TPL::terminate()
 {
-    return step_count > MAX_STEP || max_radiosity > radiosity_diff_radio_limit * max_rest_radiosity;
+    return step_count > MAX_STEP || radiosity_diff_radio_limit * max_radiosity > max_rest_radiosity;
 }
 
 RADER_IMPL_TPL_HEAD

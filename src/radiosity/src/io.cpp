@@ -140,7 +140,10 @@ void cg::io::read(openmesh::trimesh &mesh, const std::string &path)
 {
     try
     {
-        if (!OpenMesh::IO::read_mesh(mesh, path))
+        OpenMesh::IO::Options opt = OpenMesh::IO::Options::Default;
+        opt += OpenMesh::IO::Options::FaceColor;
+        opt += OpenMesh::IO::Options::VertexColor;
+        if (!OpenMesh::IO::read_mesh(mesh, path, opt))
         {
             std::cerr << (boost::format("Cannot read mesh file '%s'\n") % path);
         }
@@ -169,13 +172,77 @@ void cg::io::interpolate_vertex_color(openmesh::trimesh &mesh)
         {
             auto &mesh_ = mesh;
             clr3 c(0, 0, 0);
+            int n = 0;
             boost::for_each(boost::make_iterator_range(mesh.vf_begin(vi.handle()), mesh.vf_end(vi.handle())) | boad::outdirected,
                 [&](trimesh::VertexFaceIter vfi)
                 {
                     c += mesh_.color(vfi.handle());
+                    ++n;
                 }
             );
-            mesh.set_color(vi.handle(), c / mesh.valence(vi.handle()));
+            mesh.set_color(vi.handle(), c / n);
         }
     );
+}
+
+void cg::io::interpolate_face_color(openmesh::trimesh &mesh)
+{
+    BOOST_ASSERT(mesh.has_vertex_colors());
+    mesh.request_face_colors();
+    boost::for_each(boost::make_iterator_range(mesh.faces_begin(), mesh.faces_end()) | boad::outdirected,
+        [&](trimesh::FaceIter fi)
+        {
+            auto &mesh_ = mesh;
+            clr3 c(0, 0, 0);
+            int n = 0;
+            boost::for_each(boost::make_iterator_range(mesh.fv_begin(fi.handle()), mesh.fv_end(fi.handle())) | boad::outdirected,
+                [&](trimesh::FaceVertexIter fvi)
+                {
+                    c += mesh_.color(fvi.handle());
+                    ++n;
+                }
+            );
+            mesh.set_color(fi.handle(), c / n);
+        }
+    );
+}
+
+void cg::io::face_color_to_reflectivity(openmesh::trimesh &mesh)
+{
+    BOOST_ASSERT(mesh.has_face_colors());
+    boost::for_each(boost::make_iterator_range(mesh.faces_begin(), mesh.faces_end()) | boad::outdirected,
+        [&](trimesh::FaceIter fi)
+        {
+            auto val = mesh.property(op::property_handles::reflectivity(), fi.handle()) = mesh.color(fi.handle()) / 255;
+            //std::cout << val << std::endl;
+        }
+    );
+}
+
+void cg::io::clear_emission(openmesh::trimesh &mesh)
+{
+    boost::for_each(patches(mesh), [&](openmesh::patch_handle p)
+    {
+        mesh.property(op::property_handles::emission(), p) = openmesh::color3r().vectorize(0);
+    });
+}
+
+namespace
+{
+    inline op::real_t calc_area(const op::vector3r &x, const op::vector3r &y)
+    {
+        return 0.5 * cross(x, y).length();
+    }
+}
+
+void cg::io::prepare_area(openmesh::trimesh &mesh)
+{
+    boost::for_each(patches(mesh), [&](openmesh::patch_handle p)
+    {
+        auto it = mesh.cfv_iter(p);
+        auto a = mesh.point(it.handle());
+        auto b = mesh.point((++it).handle());
+        auto c = mesh.point((++it).handle());
+        mesh.property(op::property_handles::area(), p) = calc_area(a - b, c - b);
+    });
 }

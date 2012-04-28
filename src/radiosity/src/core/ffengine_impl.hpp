@@ -250,7 +250,9 @@ void cg::ffengine<Mesh>::init(mesh_ptr mesh)
     data->mesh = mesh;
     init_gl();
     method(this)->init_coeffs();
+#ifdef OFFSCREEN
     method(this)->init_render_target();
+#endif
     data->ffs.resize(patch_count(*mesh));
 }
 
@@ -275,8 +277,10 @@ typename cg::ffengine<Mesh>::thread_safe_computation
         //boost::lock_guard<boost::mutex> guard(opengl_based_ff_mutex);
         //std::cout << "in\n";
         {
+#ifdef OFFSCREEN
             glBindFramebuffer(GL_FRAMEBUFFER, data->frame_buffer_id);
             ans::guard g = ans::make_guard([&](){ glBindFramebuffer(GL_FRAMEBUFFER, 0); });
+#endif
             method(this)->render_scene(shooter);
             method(this)->read_pixels();
         }
