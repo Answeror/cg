@@ -1,0 +1,8 @@
+<cg>
+    <exposure>200</exposure>
+    <subdivide_radio>0.03</subdivide_radio>
+    <radiosity_diff_radio_limit>0.01</radiosity_diff_radio_limit>
+    <ffengine_count>10</ffengine_count>
+    <radiosity_filename>radisoty.middle.many.om</radiosity_filename>
+    <exposure_filename>exposure.middle.many.off</exposure_filename>
+</cg>
